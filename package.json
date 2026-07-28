@@ -1,0 +1,14 @@
+{
+  "name": "quotation-generator",
+  "version": "1.0.0",
+  "description": "保险报价单生成系统 - 飞书OpenAPI云端版",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["feishu", "bitable", "quotation"],
+  "license": "MIT"
+}

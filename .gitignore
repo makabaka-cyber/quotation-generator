@@ -1,0 +1,18 @@
+# 依赖
+node_modules/
+
+# 临时文件
+*.txt
+报价单_*.txt
+
+# IDE / 工具
+.trae/
+.vscode/
+
+# 环境变量（不要提交到仓库）
+.env
+.env.local
+
+# 系统
+Thumbs.db
+.DS_Store

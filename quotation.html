@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新能源车损保全报价单</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background-color: #f5f7fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .toolbar {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .toolbar label {
+            font-size: 14px;
+            color: #606266;
+        }
+
+        .toolbar input[type="text"],
+        .toolbar select {
+            padding: 8px 12px;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .toolbar input[type="text"]:focus,
+        .toolbar select:focus {
+            outline: none;
+            border-color: #409eff;
+        }
+
+        .btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary { background: #409eff; color: white; }
+        .btn-primary:hover { background: #66b1ff; }
+        .btn-success { background: #67c23a; color: white; }
+        .btn-success:hover { background: #85ce61; }
+        .btn-warning { background: #e6a23c; color: white; }
+        .btn-warning:hover { background: #ebb563; }
+        .btn-info { background: #909399; color: white; }
+        .btn-info:hover { background: #a6a9ad; }
+
+        .btn:hover { transform: translateY(-1px); }
+
+        .data-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+
+        .data-panel h3 {
+            color: #1e3c72;
+            font-size: 16px;
+            margin-bottom: 15px;
+            padding-left: 10px;
+            border-left: 4px solid #409eff;
+        }
+
+        .data-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .tab-btn {
+            padding: 8px 16px;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            color: #606266;
+        }
+
+        .tab-btn.active {
+            background: #409eff;
+            color: white;
+            border-color: #409eff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .form-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-item label {
+            font-size: 13px;
+            color: #606266;
+            margin-bottom: 5px;
+        }
+
+        .form-item input,
+        .form-item select {
+            padding: 8px 12px;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-item input:focus,
+        .form-item select:focus {
+            outline: none;
+            border-color: #409eff;
+        }
+
+        .json-input {
+            width: 100%;
+            min-height: 150px;
+            padding: 12px;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+
+        .json-input:focus {
+            outline: none;
+            border-color: #409eff;
+        }
+
+        .quotation {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .quotation-header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .company-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .company-logo {
+            width: 60px;
+            height: 60px;
+            background: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .company-logo img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .logo-placeholder {
+            font-size: 24px;
+            color: #1e3c72;
+            font-weight: bold;
+        }
+
+        .company-name {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .quotation-title {
+            font-size: 28px;
+            font-weight: bold;
+            letter-spacing: 4px;
+        }
+
+        .quotation-subtitle {
+            text-align: center;
+            padding: 20px 30px;
+            background: #f8f9fc;
+            border-bottom: 1px solid #ebeef5;
+        }
+
+        .quotation-subtitle h2 {
+            color: #1e3c72;
+            font-size: 22px;
+            margin-bottom: 5px;
+        }
+
+        .quotation-subtitle p {
+            color: #909399;
+            font-size: 13px;
+        }
+
+        .client-info {
+            padding: 25px 30px;
+            border-bottom: 1px solid #ebeef5;
+        }
+
+        .client-info h3,
+        .coverage-section h3 {
+            color: #1e3c72;
+            font-size: 16px;
+            margin-bottom: 15px;
+            padding-left: 10px;
+            border-left: 4px solid #409eff;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px 30px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .info-label {
+            color: #909399;
+            font-size: 13px;
+            width: 100px;
+            flex-shrink: 0;
+        }
+
+        .info-value {
+            color: #303133;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .coverage-section {
+            padding: 25px 30px;
+            border-bottom: 1px solid #ebeef5;
+        }
+
+        .coverage-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .coverage-table th,
+        .coverage-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ebeef5;
+        }
+
+        .coverage-table th {
+            background: #f8f9fc;
+            color: #606266;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .coverage-table td {
+            color: #303133;
+            font-size: 14px;
+        }
+
+        .text-right { text-align: right; }
+        .amount { color: #f56c6c; font-weight: 600; }
+
+        .coverage-table .total-row {
+            background: #f0f4fa;
+            font-weight: bold;
+        }
+
+        .coverage-table .total-row td {
+            color: #1e3c72;
+        }
+
+        .total-section {
+            padding: 30px;
+            background: #f8f9fc;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+        }
+
+        .total-row .label {
+            color: #606266;
+            font-size: 15px;
+        }
+
+        .total-row .value {
+            color: #303133;
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .total-row.grand-total {
+            border-top: 2px solid #1e3c72;
+            margin-top: 10px;
+            padding-top: 20px;
+        }
+
+        .total-row.grand-total .label {
+            color: #1e3c72;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .total-row.grand-total .value {
+            color: #f56c6c;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .quotation-footer {
+            padding: 20px 30px;
+            text-align: center;
+            color: #909399;
+            font-size: 12px;
+            border-top: 1px solid #ebeef5;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #909399;
+        }
+
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
+
+        .hidden { display: none; }
+
+        /* 模态框样式 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 25px;
+            border-bottom: 1px solid #ebeef5;
+        }
+
+        .modal-header h3 {
+            color: #1e3c72;
+            font-size: 18px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #909399;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0;
+        }
+
+        .modal-close:hover {
+            color: #f56c6c;
+        }
+
+        .modal-body {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-search {
+            padding: 15px 25px;
+            border-bottom: 1px solid #ebeef5;
+        }
+
+        .modal-search input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .modal-search input:focus {
+            outline: none;
+            border-color: #409eff;
+        }
+
+        .record-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 0;
+        }
+
+        .record-item {
+            padding: 15px 25px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .record-item:hover {
+            background: #ecf5ff;
+        }
+
+        .record-item .record-no {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e3c72;
+            margin-bottom: 4px;
+        }
+
+        .record-item .record-detail {
+            font-size: 13px;
+            color: #606266;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .record-item .record-detail span {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 300px;
+        }
+
+        .record-loading {
+            text-align: center;
+            padding: 40px;
+            color: #909399;
+            font-size: 14px;
+        }
+
+        .record-error {
+            text-align: center;
+            padding: 40px;
+            color: #f56c6c;
+            font-size: 14px;
+        }
+
+        @media print {
+            .toolbar,
+            .data-panel {
+                display: none !important;
+            }
+
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .quotation {
+                box-shadow: none;
+            }
+
+            .container {
+                max-width: 100%;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .quotation-header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="toolbar">
+            <button class="btn btn-primary" onclick="loadFromFeishu()">📋 从飞书加载</button>
+            <button class="btn btn-success" onclick="generateQuotation()">生成报价单</button>
+            <button class="btn btn-warning" onclick="saveToFeishu()" id="saveBtn">💾 保存到飞书</button>
+            <button class="btn btn-info" onclick="window.print()">🖨 打印/PDF</button>
+            <button class="btn btn-primary" onclick="toggleDataPanel()">编辑数据</button>
+        </div>
+
+        <!-- 飞书记录选择模态框 -->
+        <div class="modal-overlay hidden" id="feishuModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>选择保单记录</h3>
+                    <button class="modal-close" onclick="closeFeishuModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-search">
+                        <input type="text" id="recordSearch" placeholder="搜索保单编号、客户信息或车型..." oninput="filterRecords()">
+                    </div>
+                    <div class="record-list" id="recordList">
+                        <div class="record-loading">正在从飞书加载记录...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="data-panel hidden" id="dataPanel">
+            <h3>数据输入</h3>
+            <div class="data-tabs">
+                <button class="tab-btn active" onclick="switchTab('form')">表单输入</button>
+                <button class="tab-btn" onclick="switchTab('json')">JSON数据</button>
+            </div>
+
+            <div id="formTab" class="tab-content active">
+                <div class="form-grid">
+                    <div class="form-item">
+                        <label>客户信息</label>
+                        <input type="text" id="f_clientInfo" placeholder="如：张先生 138****8888">
+                    </div>
+                    <div class="form-item">
+                        <label>车型</label>
+                        <input type="text" id="f_vehicleModel" placeholder="如：比亚迪 汉EV 2024款">
+                    </div>
+                    <div class="form-item">
+                        <label>保险公司</label>
+                        <input type="text" id="f_companyName" placeholder="如：平安产险">
+                    </div>
+                    <div class="form-item">
+                        <label>保险公司Logo URL</label>
+                        <input type="text" id="f_companyLogo" placeholder="图片URL地址（可选）">
+                    </div>
+                    <div class="form-item">
+                        <label>交强保费（元）</label>
+                        <input type="number" id="f_compulsoryPremium" placeholder="950">
+                    </div>
+                    <div class="form-item">
+                        <label>车船税（元）</label>
+                        <input type="number" id="f_vehicleTax" placeholder="480">
+                    </div>
+                    <div class="form-item">
+                        <label>车损险保费（元）</label>
+                        <input type="number" id="f_vehicleDamagePremium" placeholder="1280">
+                    </div>
+                    <div class="form-item">
+                        <label>医保外保费（元）</label>
+                        <input type="number" id="f_medicalOutsidePremium" placeholder="150">
+                    </div>
+                    <div class="form-item">
+                        <label>外电网保费（元）</label>
+                        <input type="number" id="f_externalGridPremium" placeholder="80">
+                    </div>
+                    <div class="form-item">
+                        <label>三者保额（元）</label>
+                        <input type="number" id="f_thirdPartyAmount" placeholder="3000000">
+                    </div>
+                    <div class="form-item">
+                        <label>三者保费（元）</label>
+                        <input type="number" id="f_thirdPartyPremium" placeholder="1800">
+                    </div>
+                    <div class="form-item">
+                        <label>司机座位险保额（元）</label>
+                        <input type="number" id="f_driverSeatAmount" placeholder="30000">
+                    </div>
+                    <div class="form-item">
+                        <label>乘客座位险保额（元）</label>
+                        <input type="number" id="f_passengerSeatAmount" placeholder="30000">
+                    </div>
+                    <div class="form-item">
+                        <label>驾乘意外保额（元）</label>
+                        <input type="number" id="f_accidentAmount" placeholder="100000">
+                    </div>
+                    <div class="form-item">
+                        <label>司机座位险保费（元）</label>
+                        <input type="number" id="f_driverSeatPremium" placeholder="45">
+                    </div>
+                    <div class="form-item">
+                        <label>乘客座位险保费（元）</label>
+                        <input type="number" id="f_passengerSeatPremium" placeholder="30">
+                    </div>
+                    <div class="form-item">
+                        <label>驾乘意外保费（元）</label>
+                        <input type="number" id="f_accidentPremium" placeholder="120">
+                    </div>
+                    <div class="form-item">
+                        <label>新能源车损两年期保费（元）</label>
+                        <input type="number" id="f_newEnergy2Year" placeholder="1280">
+                    </div>
+                    <div class="form-item">
+                        <label>新能源车损三年期保费（元）</label>
+                        <input type="number" id="f_newEnergy3Year" placeholder="1880">
+                    </div>
+                </div>
+            </div>
+
+            <div id="jsonTab" class="tab-content">
+                <p style="margin-bottom: 10px; color: #606266; font-size: 13px;">
+                    粘贴从飞书多维表格导出的JSON数据（fields部分），格式示例：
+                </p>
+                <textarea id="jsonInput" class="json-input" placeholder='{
+  "客户信息": "张先生 138****8888",
+  "车型": "比亚迪 汉EV 2024款",
+  "保险公司": "平安产险",
+  "交强保费": 950,
+  "车船税": 480,
+  "车损险保费": 1280,
+  "医保外保费": 150,
+  "外电网保费": 80,
+  "三者保额": 3000000,
+  "三者保费": 1800,
+  "司机座位险保额": 30000,
+  "乘客座位险保额": 30000,
+  "驾乘意外保额": 100000,
+  "司机座位险保费": 45,
+  "乘客座位险保费": 30,
+  "驾乘意外保费": 120,
+  "新能源车损两年期": 1280,
+  "新能源车损三年期": 1880
+}'></textarea>
+                <div style="margin-top: 10px;">
+                    <button class="btn btn-primary" onclick="importJson()">导入JSON数据</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="quotation" id="quotation">
+            <div class="empty-state" id="emptyState">
+                <div class="icon">📋</div>
+                <p>点击"加载示例数据"或填写数据后点击"生成报价单"</p>
+            </div>
+
+            <div id="quotationContent" class="hidden">
+                <!-- 头部 -->
+                <div class="quotation-header">
+                    <div class="company-info">
+                        <div class="company-logo">
+                            <img id="companyLogo" src="" alt="Logo" onerror="this.style.display='none'; document.getElementById('logoPlaceholder').style.display='block';">
+                            <span class="logo-placeholder hidden" id="logoPlaceholder">保险</span>
+                        </div>
+                        <div>
+                            <div class="company-name" id="companyName">—</div>
+                        </div>
+                    </div>
+                    <div class="quotation-title">新能源车损保全报价单</div>
+                </div>
+
+                <!-- 副标题 -->
+                <div class="quotation-subtitle">
+                    <h2>保险报价确认单</h2>
+                    <p>本报价单由系统自动生成</p>
+                </div>
+
+                <!-- 客户信息 -->
+                <div class="client-info">
+                    <h3>客户信息</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">客户信息：</span>
+                            <span class="info-value" id="clientInfo">—</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">车型：</span>
+                            <span class="info-value" id="vehicleModel">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 保障项目 -->
+                <div class="coverage-section">
+                    <h3>保障项目</h3>
+                    <table class="coverage-table">
+                        <thead>
+                            <tr>
+                                <th>保障项目</th>
+                                <th class="text-right">保额 / 方案价格</th>
+                                <th class="text-right">保费 / 方案总价</th>
+                            </tr>
+                        </thead>
+                        <tbody id="coverageBody">
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 费用合计 -->
+                <div class="total-section">
+                    <div class="total-row">
+                        <span class="label">商业险合计：</span>
+                        <span class="value" id="commercialTotal">¥0</span>
+                    </div>
+                    <div class="total-row">
+                        <span class="label">交强保费：</span>
+                        <span class="value" id="compulsoryPremium">¥0</span>
+                    </div>
+                    <div class="total-row">
+                        <span class="label">车船税：</span>
+                        <span class="value" id="vehicleTax">¥0</span>
+                    </div>
+                    <div class="total-row">
+                        <span class="label">驾乘意外保费：</span>
+                        <span class="value" id="accidentPremium">¥0</span>
+                    </div>
+                    <div class="total-row" style="border-top:1px solid #ebeef5; margin-top:10px; padding-top:10px;">
+                        <span class="label" style="font-weight:600; color:#1e3c72;">保险公司保费（交强+商业+驾乘）：</span>
+                        <span class="value" id="insuranceTotal" style="font-weight:600;">¥0</span>
+                    </div>
+
+                    <!-- 方案一：两年期 -->
+                    <div class="total-row" style="border-top:2px solid #1e3c72; margin-top:15px; padding-top:15px;">
+                        <span class="label" style="color:#1e3c72; font-weight:600; font-size:15px;">
+                            🔷 方案一 · 新能源车损保全（两年期）
+                        </span>
+                    </div>
+                    <div class="total-row">
+                        <span class="label">　方案价格：</span>
+                        <span class="value" id="nonCarPriceM">¥0</span>
+                    </div>
+                    <div class="total-row grand-total">
+                        <span class="label">合计：</span>
+                        <span class="value" id="grandTotal2">¥0</span>
+                    </div>
+
+                    <!-- 方案二：三年期 -->
+                    <div class="total-row" style="border-top:2px solid #1e3c72; margin-top:15px; padding-top:15px;">
+                        <span class="label" style="color:#1e3c72; font-weight:600; font-size:15px;">
+                            🔷 方案二 · 新能源车损保全（三年期）
+                        </span>
+                    </div>
+                    <div class="total-row">
+                        <span class="label">　方案价格：</span>
+                        <span class="value" id="nonCarPriceU">¥0</span>
+                    </div>
+                    <div class="total-row grand-total">
+                        <span class="label">合计：</span>
+                        <span class="value" id="grandTotal3">¥0</span>
+                    </div>
+
+                    <!-- 方案三：三年期+ -->
+                    <div class="total-row" style="border-top:2px solid #e6a23c; margin-top:15px; padding-top:15px;">
+                        <span class="label" style="color:#e6a23c; font-weight:600; font-size:15px;">
+                            🔷 方案三 · 新能源车损保全（三年期+ 尊享版）
+                        </span>
+                    </div>
+                    <div class="total-row">
+                        <span class="label">　方案价格：</span>
+                        <span class="value" id="nonCarPriceUPlus">¥0</span>
+                    </div>
+                    <div class="total-row grand-total" style="background:#fff3e0;">
+                        <span class="label" style="color:#e6a23c;">合计：</span>
+                        <span class="value" id="grandTotal3Plus" style="color:#e67e22;">¥0</span>
+                    </div>
+                </div>
+
+                <!-- 页脚 -->
+                <div class="quotation-footer">
+                    <p>本报价单仅供参考，最终以正式保单为准</p>
+                    <p style="margin-top:5px;">
+                        保单编号：<span id="policyNo">—</span>
+                        　｜　
+                        生成时间：<span id="generateTime"></span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let policyData = null;
+        let selectedNewEnergy = null;
+        let feishuRecords = []; // 飞书记录列表缓存
+
+        const FIELD_MAP = {
+            clientInfo: '客户信息',
+            vehicleModel: '车型',
+            companyName: '保险公司',
+            companyLogo: '保险公司logo',
+            policyNo: '保单编号',
+            compulsoryPremium: '交强保费',
+            vehicleTax: '车船税',
+            vehicleDamagePremium: '车损险保费',
+            medicalOutsidePremium: '医保外保费',
+            externalGridPremium: '外电网保费',
+            thirdPartyAmount: '三者保额',
+            thirdPartyPremium: '三者保费',
+            driverSeatAmount: '司机座位险保额',
+            passengerSeatAmount: '乘客座位险保额',
+            accidentAmount: '驾乘意外保额',
+            driverSeatPremium: '司机座位险保费',
+            passengerSeatPremium: '乘客座位险保费',
+            accidentPremium: '驾乘意外保费',
+            commercialTotal: '商业险合计',
+            insuranceTotal: '保险公司保费',
+            // 三个方案总价（已含交强+商业+驾乘）
+            newEnergy2Year: '新能源车损两年期',
+            newEnergy3Year: '新能源车损三年期',
+            newEnergy3YearPlus: '新能源车损三年期+',
+            // 方案价格（对应飞书字段名，保留原字段名以匹配数据源）
+            nonCarPriceM: '非车价格m',     // 两年期方案价格
+            nonCarPriceU: '非车价格u',     // 三年期方案价格
+            nonCarPriceUPlus: '非车价格u+', // 三年期+方案价格
+        };
+
+        function toggleDataPanel() {
+            const panel = document.getElementById('dataPanel');
+            panel.classList.toggle('hidden');
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            if (tab === 'form') {
+                document.querySelectorAll('.tab-btn')[0].classList.add('active');
+                document.getElementById('formTab').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab-btn')[1].classList.add('active');
+                document.getElementById('jsonTab').classList.add('active');
+            }
+        }
+
+        // ========== 飞书数据加载功能 ==========
+
+        async function loadFromFeishu() {
+            document.getElementById('feishuModal').classList.remove('hidden');
+            document.getElementById('recordSearch').value = '';
+            const listEl = document.getElementById('recordList');
+            listEl.innerHTML = '<div class="record-loading">正在从飞书加载记录...</div>';
+
+            try {
+                const response = await fetch('/api/records');
+                const data = await response.json();
+
+                if (data.ok && data.records && data.records.length > 0) {
+                    feishuRecords = data.records;
+                    renderRecordList(feishuRecords);
+                } else {
+                    listEl.innerHTML = '<div class="record-error">' +
+                        (data.error || '未找到任何保单记录') +
+                        '<br><br>请确认后端服务器已启动且 lark-cli 已配置</div>';
+                }
+            } catch (error) {
+                console.error('加载飞书数据失败:', error);
+                listEl.innerHTML = '<div class="record-error">' +
+                    '无法连接后端服务器<br><br>' +
+                    '请按以下步骤启动：<br>' +
+                    '1. 打开命令行（CMD）<br>' +
+                    '2. 切换到项目目录<br>' +
+                    '3. 运行：python server.py<br>' +
+                    '4. 然后刷新此页面</div>';
+            }
+        }
+
+        function closeFeishuModal() {
+            document.getElementById('feishuModal').classList.add('hidden');
+        }
+
+        function renderRecordList(records) {
+            const listEl = document.getElementById('recordList');
+
+            if (records.length === 0) {
+                listEl.innerHTML = '<div class="record-loading">未找到匹配的记录</div>';
+                return;
+            }
+
+            listEl.innerHTML = records.map(r => `
+                <div class="record-item" onclick="selectRecord('${r.record_id}')">
+                    <div class="record-no">${r.保单编号 || r.record_id}</div>
+                    <div class="record-detail">
+                        <span>客户：${r.客户信息 || '—'}</span>
+                        <span>车型：${r.车型 || '—'}</span>
+                        <span>保险公司：${r.保险公司 || '—'}</span>
+                        <span>保费：¥${Number(r.保险公司保费 || 0).toLocaleString('zh-CN')}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterRecords() {
+            const keyword = document.getElementById('recordSearch').value.trim().toLowerCase();
+            if (!keyword) {
+                renderRecordList(feishuRecords);
+                return;
+            }
+
+            const filtered = feishuRecords.filter(r => {
+                const text = [
+                    r.保单编号, r.客户信息, r.车型, r.保险公司
+                ].join(' ').toLowerCase();
+                return text.includes(keyword);
+            });
+            renderRecordList(filtered);
+        }
+
+        async function selectRecord(recordId) {
+            const listEl = document.getElementById('recordList');
+            listEl.innerHTML = '<div class="record-loading">正在加载记录详情...</div>';
+
+            try {
+                const response = await fetch(`/api/record?record_id=${recordId}`);
+                const data = await response.json();
+
+                if (data.ok && data.record) {
+                    policyData = data.record;
+                    fillFormFromData();
+                    selectedNewEnergy = null;
+                    closeFeishuModal();
+                    renderQuotation();
+                    // 自动滚动到报价单
+                    document.getElementById('quotation').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    listEl.innerHTML = '<div class="record-error">' +
+                        (data.error || '加载记录详情失败') + '</div>';
+                }
+            } catch (error) {
+                console.error('加载记录详情失败:', error);
+                listEl.innerHTML = '<div class="record-error">加载记录详情失败</div>';
+            }
+        }
+
+        /** 生成纯文本报价单（用于上传飞书附件，飞书内直接可读） */
+        function generateStandaloneText() {
+            const fm = (key) => formatMoney(getFieldValue(FIELD_MAP[key]) || 0);
+            const val = (key) => getFieldValue(FIELD_MAP[key]) || '—';
+            const insuranceTotal = Number(getFieldValue(FIELD_MAP.insuranceTotal)) || 0;
+            const line = '═'.repeat(40);
+            const dash = '─'.repeat(40);
+            const dash2 = '┄'.repeat(40);
+
+            let text = '';
+            text += line + '\n';
+            text += '          保 险 报 价 确 认 单\n';
+            text += line + '\n';
+            text += `承保公司：${val('companyName')}\n`;
+            text += `保单编号：${val('policyNo')}\n`;
+            text += '\n';
+            text += '【客户信息】\n';
+            text += `  客　户：${val('clientInfo')}\n`;
+            text += `  车　型：${val('vehicleModel')}\n`;
+            text += '\n';
+            text += '【保障项目】\n';
+            text += dash + '\n';
+            text += '  保障项目             保额        保费\n';
+            text += dash + '\n';
+            text += `  车损险                —     ${fm('vehicleDamagePremium')}\n`;
+            text += `  三者险        ${fm('thirdPartyAmount')}     ${fm('thirdPartyPremium')}\n`;
+            text += `  医保外责任险          —     ${fm('medicalOutsidePremium')}\n`;
+            text += `  外电网责任险          —     ${fm('externalGridPremium')}\n`;
+            text += `  司机座位险    ${fm('driverSeatAmount')}     ${fm('driverSeatPremium')}\n`;
+            text += `  乘客座位险    ${fm('passengerSeatAmount')}     ${fm('passengerSeatPremium')}\n`;
+            text += `  驾乘意外险    ${fm('accidentAmount')}     ${fm('accidentPremium')}\n`;
+            text += dash + '\n';
+            text += `  商业险合计                    ${fm('commercialTotal')}\n`;
+            text += '\n';
+            text += '【新能源车损保全（三方案同报）】\n';
+            text += dash2 + '\n';
+            text += `  两年期          ${fm('nonCarPriceM')}     ${fm('newEnergy2Year')}\n`;
+            text += `  三年期          ${fm('nonCarPriceU')}     ${fm('newEnergy3Year')}\n`;
+            text += `  三年期+（尊享版）${fm('nonCarPriceUPlus')}    ${fm('newEnergy3YearPlus')}\n`;
+            text += dash2 + '\n';
+            text += '\n';
+            text += '【费用汇总】\n';
+            text += dash + '\n';
+            text += `  交强保费：${fm('compulsoryPremium')}\n`;
+            text += `  车船税：${fm('vehicleTax')}\n`;
+            text += `  驾乘意外保费：${fm('accidentPremium')}\n`;
+            text += `  保险公司保费（交强+商业+驾乘）：${formatMoney(insuranceTotal)}\n`;
+            text += '\n';
+            text += dash + '\n';
+            text += '  方案一 · 新能源车损保全（两年期）\n';
+            text += `    合计：${fm('newEnergy2Year')}\n`;
+            text += '\n';
+            text += '  方案二 · 新能源车损保全（三年期）\n';
+            text += `    合计：${fm('newEnergy3Year')}\n`;
+            text += '\n';
+            text += '  方案三 · 新能源车损保全（三年期+ 尊享版）\n';
+            text += `    合计：${fm('newEnergy3YearPlus')}\n`;
+            text += '\n';
+            text += line + '\n';
+            text += '本报价单仅供参考，最终以正式保单为准\n';
+            text += `生成时间：${new Date().toLocaleString('zh-CN')}\n`;
+
+            return text;
+        }
+
+        /** 保存报价单到飞书"报价单附件"字段 */
+        async function saveToFeishu() {
+            if (!policyData) {
+                alert('请先加载或输入数据');
+                return;
+            }
+            const recordId = policyData.record_id;
+            if (!recordId) {
+                alert('当前数据无飞书记录ID，无法保存。请通过"从飞书加载"选择记录。');
+                return;
+            }
+
+            const btn = document.getElementById('saveBtn');
+            const originalText = btn.textContent;
+            btn.textContent = '⏳ 保存中...';
+            btn.disabled = true;
+
+            try {
+                const text = generateStandaloneText();
+                const response = await fetch('/api/save-to-feishu', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ record_id: recordId, text: text }),
+                });
+                const data = await response.json();
+
+                if (data.ok) {
+                    btn.textContent = '✅ 已保存';
+                    setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 3000);
+                    alert('✅ 报价单已成功保存到飞书"报价单附件"字段！');
+                } else {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                    alert('❌ 保存失败：' + (data.error || '未知错误'));
+                }
+            } catch (error) {
+                btn.textContent = originalText;
+                btn.disabled = false;
+                alert('❌ 保存失败：' + error.message);
+            }
+        }
+
+        function loadSample() {
+            policyData = {
+                '客户信息': '张先生 138****8888',
+                '车型': '比亚迪 汉EV 2024款',
+                '保险公司': '平安产险',
+                '保险公司logo': '',
+                '保单编号': 'POL-DEMO',
+                '交强保费': 950,
+                '车船税': 480,
+                '车损险保费': 1280,
+                '医保外保费': 150,
+                '外电网保费': 80,
+                '三者保额': 3000000,
+                '三者保费': 1800,
+                '司机座位险保额': 30000,
+                '乘客座位险保额': 30000,
+                '驾乘意外保额': 100000,
+                '司机座位险保费': 45,
+                '乘客座位险保费': 30,
+                '驾乘意外保费': 120,
+                '商业险合计': 3385,
+                '保险公司保费': 4935,
+                '新能源车损两年期': 6215,
+                '新能源车损三年期': 6815,
+                '新能源车损三年期+': 18800,
+                '非车价格m': 1280,
+                '非车价格u': 1880,
+                '非车价格u+': 13865,
+            };
+
+            fillFormFromData();
+            renderQuotation();
+        }
+
+        function fillFormFromData() {
+            Object.keys(FIELD_MAP).forEach(key => {
+                const fieldName = FIELD_MAP[key];
+                const inputId = 'f_' + key;
+                const input = document.getElementById(inputId);
+                if (input) {
+                    input.value = policyData[fieldName] || '';
+                }
+            });
+        }
+
+        function collectFormData() {
+            const data = {};
+            Object.keys(FIELD_MAP).forEach(key => {
+                const fieldName = FIELD_MAP[key];
+                const inputId = 'f_' + key;
+                const input = document.getElementById(inputId);
+                if (input) {
+                    const value = input.value.trim();
+                    data[fieldName] = value === '' ? '' : (isNaN(value) ? value : Number(value));
+                }
+            });
+            return data;
+        }
+
+        function importJson() {
+            const jsonText = document.getElementById('jsonInput').value.trim();
+            try {
+                const data = JSON.parse(jsonText);
+                policyData = data;
+                fillFormFromData();
+                selectedNewEnergy = null;
+                alert('数据导入成功！请点击"生成报价单"');
+            } catch (e) {
+                alert('JSON格式错误：' + e.message);
+            }
+        }
+
+        function generateQuotation() {
+            policyData = collectFormData();
+            selectedNewEnergy = null;
+            renderQuotation();
+        }
+
+        function getFieldValue(fieldName) {
+            if (!policyData) return null;
+            return policyData[fieldName];
+        }
+
+        function formatMoney(value) {
+            if (value === null || value === undefined || value === '') return '¥0';
+            const num = Number(value);
+            if (isNaN(num)) return '¥0';
+            return '¥' + num.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        }
+
+        function renderQuotation() {
+            if (!policyData) {
+                alert('请先加载或输入数据');
+                return;
+            }
+
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('quotationContent').classList.remove('hidden');
+
+            // 公司信息
+            document.getElementById('companyName').textContent = getFieldValue(FIELD_MAP.companyName) || '—';
+            const logoValue = getFieldValue(FIELD_MAP.companyLogo);
+            const logoImg = document.getElementById('companyLogo');
+            const logoPlaceholder = document.getElementById('logoPlaceholder');
+            
+            if (logoValue && typeof logoValue === 'string' && logoValue.startsWith('http')) {
+                logoImg.src = logoValue;
+                logoImg.style.display = 'block';
+                logoPlaceholder.classList.add('hidden');
+            } else {
+                logoImg.style.display = 'none';
+                logoPlaceholder.classList.remove('hidden');
+                logoPlaceholder.textContent = (getFieldValue(FIELD_MAP.companyName) || '保险').substring(0, 2);
+            }
+
+            // 客户信息
+            document.getElementById('clientInfo').textContent = getFieldValue(FIELD_MAP.clientInfo) || '—';
+            document.getElementById('vehicleModel').textContent = getFieldValue(FIELD_MAP.vehicleModel) || '—';
+
+            // 保障项目表格
+            const coverageItems = [
+                { name: '车损险', amount: null, premium: getFieldValue(FIELD_MAP.vehicleDamagePremium) },
+                { name: '三者险', amount: getFieldValue(FIELD_MAP.thirdPartyAmount), premium: getFieldValue(FIELD_MAP.thirdPartyPremium) },
+                { name: '医保外责任险', amount: null, premium: getFieldValue(FIELD_MAP.medicalOutsidePremium) },
+                { name: '外电网责任险', amount: null, premium: getFieldValue(FIELD_MAP.externalGridPremium) },
+                { name: '司机座位险', amount: getFieldValue(FIELD_MAP.driverSeatAmount), premium: getFieldValue(FIELD_MAP.driverSeatPremium) },
+                { name: '乘客座位险', amount: getFieldValue(FIELD_MAP.passengerSeatAmount), premium: getFieldValue(FIELD_MAP.passengerSeatPremium) },
+                { name: '驾乘意外险', amount: getFieldValue(FIELD_MAP.accidentAmount), premium: getFieldValue(FIELD_MAP.accidentPremium) }
+            ];
+
+            const tbody = document.getElementById('coverageBody');
+            tbody.innerHTML = '';
+
+            // 优先使用飞书表中已计算好的商业险合计值
+            let commercialTotal = Number(getFieldValue(FIELD_MAP.commercialTotal)) || 0;
+            if (!commercialTotal || commercialTotal <= 0) {
+                // 如果飞书没有提供，才用明细相加
+                coverageItems.forEach(item => {
+                    const premium = Number(item.premium) || 0;
+                    if (item.name !== '驾乘意外险') {
+                        commercialTotal += premium;
+                    }
+                });
+            }
+
+            coverageItems.forEach(item => {
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.name}</td>
+                    <td class="text-right">${item.amount ? formatMoney(item.amount) : '—'}</td>
+                    <td class="text-right amount">${formatMoney(item.premium)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // 商业险合计行
+            const totalTr = document.createElement('tr');
+            totalTr.className = 'total-row';
+            totalTr.innerHTML = `
+                <td colspan="2" class="text-right">商业险合计</td>
+                <td class="text-right">${formatMoney(commercialTotal)}</td>
+            `;
+            tbody.appendChild(totalTr);
+
+            // 新能源车损保全 - 三个方案同时报价
+            // 总价已含交强+商业+驾乘，方案价格单独显示
+            const price2 = getFieldValue(FIELD_MAP.newEnergy2Year) || 0;
+            const price3 = getFieldValue(FIELD_MAP.newEnergy3Year) || 0;
+            const price3Plus = getFieldValue(FIELD_MAP.newEnergy3YearPlus) || 0;
+            const nonCarM = getFieldValue(FIELD_MAP.nonCarPriceM) || 0;
+            const nonCarU = getFieldValue(FIELD_MAP.nonCarPriceU) || 0;
+            const nonCarUPlus = getFieldValue(FIELD_MAP.nonCarPriceUPlus) || 0;
+
+            // 方案分组标题行
+            const groupTr = document.createElement('tr');
+            groupTr.innerHTML = `
+                <td colspan="3" style="background:#f8f9fc; padding:10px 15px; color:#1e3c72; font-weight:600; border-top:2px solid #1e3c72;">
+                    新能源车损保全（核心产品，三方案同报）
+                </td>
+            `;
+            tbody.appendChild(groupTr);
+
+            // 两年期行
+            tbody.appendChild(createPlanRow('新能源车损保全（两年期）', nonCarM, price2));
+            // 三年期行
+            tbody.appendChild(createPlanRow('新能源车损保全（三年期）', nonCarU, price3));
+            // 三年期+行
+            tbody.appendChild(createPlanRow('新能源车损保全（三年期+ 尊享版）', nonCarUPlus, price3Plus, true));
+
+            calculateTotals(commercialTotal, price2, price3, price3Plus, nonCarM, nonCarU, nonCarUPlus);
+            document.getElementById('policyNo').textContent = getFieldValue(FIELD_MAP.policyNo) || '—';
+            document.getElementById('generateTime').textContent = new Date().toLocaleString('zh-CN');
+        }
+
+        /** 创建方案行：保障名称 | 方案价格 | 方案总价(含交强商业驾乘) */
+        function createPlanRow(name, nonCarPrice, totalPrice, highlight) {
+            const tr = document.createElement('tr');
+            if (highlight) tr.style.background = '#fffbeb';
+            tr.innerHTML = `
+                <td style="padding-left:30px;">${name}</td>
+                <td class="text-right">${formatMoney(nonCarPrice)}</td>
+                <td class="text-right amount" style="${highlight ? 'color:#e67e22;font-weight:600;' : ''}">${formatMoney(totalPrice)}</td>
+            `;
+            return tr;
+        }
+
+        function calculateCommercialTotal() {
+            // 优先使用飞书表中已计算好的商业险合计值
+            const feishuCommercial = Number(getFieldValue(FIELD_MAP.commercialTotal)) || 0;
+            if (feishuCommercial > 0) {
+                return feishuCommercial;
+            }
+
+            // 如果飞书没有提供，才用明细相加
+            const premiumFields = [
+                FIELD_MAP.vehicleDamagePremium,
+                FIELD_MAP.thirdPartyPremium,
+                FIELD_MAP.medicalOutsidePremium,
+                FIELD_MAP.externalGridPremium,
+                FIELD_MAP.driverSeatPremium,
+                FIELD_MAP.passengerSeatPremium
+            ];
+
+            return premiumFields.reduce((sum, field) => {
+                return sum + (Number(getFieldValue(field)) || 0);
+            }, 0);
+        }
+
+        function calculateTotals(commercialTotal, price2, price3, price3Plus, nonCarM, nonCarU, nonCarUPlus) {
+            // 默认值处理
+            if (price2 === undefined) price2 = Number(getFieldValue(FIELD_MAP.newEnergy2Year)) || 0;
+            if (price3 === undefined) price3 = Number(getFieldValue(FIELD_MAP.newEnergy3Year)) || 0;
+            if (price3Plus === undefined) price3Plus = Number(getFieldValue(FIELD_MAP.newEnergy3YearPlus)) || 0;
+            if (nonCarM === undefined) nonCarM = Number(getFieldValue(FIELD_MAP.nonCarPriceM)) || 0;
+            if (nonCarU === undefined) nonCarU = Number(getFieldValue(FIELD_MAP.nonCarPriceU)) || 0;
+            if (nonCarUPlus === undefined) nonCarUPlus = Number(getFieldValue(FIELD_MAP.nonCarPriceUPlus)) || 0;
+
+            const compulsoryPremium = Number(getFieldValue(FIELD_MAP.compulsoryPremium)) || 0;
+            document.getElementById('compulsoryPremium').textContent = formatMoney(compulsoryPremium);
+
+            const vehicleTax = Number(getFieldValue(FIELD_MAP.vehicleTax)) || 0;
+            document.getElementById('vehicleTax').textContent = formatMoney(vehicleTax);
+
+            const accidentPremium = Number(getFieldValue(FIELD_MAP.accidentPremium)) || 0;
+            document.getElementById('accidentPremium').textContent = formatMoney(accidentPremium);
+
+            document.getElementById('commercialTotal').textContent = formatMoney(commercialTotal);
+
+            // 保险公司保费（交强+商业+驾乘）- 飞书原始值
+            let insuranceTotal = Number(getFieldValue(FIELD_MAP.insuranceTotal)) || 0;
+            if (!insuranceTotal || insuranceTotal <= 0) {
+                insuranceTotal = commercialTotal + vehicleTax + compulsoryPremium + accidentPremium;
+            }
+            document.getElementById('insuranceTotal').textContent = formatMoney(insuranceTotal);
+
+            // 三个方案总价直接使用飞书字段值（已含交强+商业+驾乘）
+            // 方案一：两年期
+            document.getElementById('nonCarPriceM').textContent = formatMoney(nonCarM);
+            document.getElementById('grandTotal2').textContent = formatMoney(price2);
+
+            // 方案二：三年期
+            document.getElementById('nonCarPriceU').textContent = formatMoney(nonCarU);
+            document.getElementById('grandTotal3').textContent = formatMoney(price3);
+
+            // 方案三：三年期+
+            document.getElementById('nonCarPriceUPlus').textContent = formatMoney(nonCarUPlus);
+            document.getElementById('grandTotal3Plus').textContent = formatMoney(price3Plus);
+        }
+    </script>
+</body>
+</html>
