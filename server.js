@@ -221,6 +221,78 @@ function generateTextFromRecord(detail) {
     return t;
 }
 
+/**
+ * 构建报价单的飞书文档块数组（用于生成 PDF）
+ * 严格遵循约束：不含"安心包"/"非车"字样，统一为"新能源车损保全"
+ * @param {object} detail 记录详情（buildRecordDetail 返回值）
+ * @returns {Array} 飞书 docx blocks 数组
+ */
+function buildQuotationBlocks(detail) {
+    const d = detail || {};
+    const get = (k) => (d[k] !== undefined && d[k] !== null && d[k] !== '') ? d[k] : '—';
+    const fm = (k) => formatMoney(d[k]);
+
+    // 文档块构造器（符合飞书 docx block 结构）
+    const textRun = (content) => ({ text_run: { content: String(content), text_element_style: {} } });
+    const heading1 = (content) => ({ block_type: 3, heading1: { elements: [textRun(content)] } });
+    const heading2 = (content) => ({ block_type: 4, heading2: { elements: [textRun(content)] } });
+    const text = (content) => ({ block_type: 2, text: { elements: [textRun(content)], style: {} } });
+    const divider = () => ({ block_type: 22, divider: {} });
+
+    const blocks = [];
+    // 标题
+    blocks.push(heading1('保险报价确认单'));
+    blocks.push(text(`承保公司：${get('保险公司')}`));
+    blocks.push(text(`保单编号：${get('保单编号')}`));
+    blocks.push(divider());
+
+    // 客户信息
+    blocks.push(heading2('客户信息'));
+    blocks.push(text(`客户：${get('客户信息')}`));
+    blocks.push(text(`车型：${get('车型')}`));
+    blocks.push(divider());
+
+    // 保障项目
+    blocks.push(heading2('保障项目'));
+    blocks.push(text(`车损险          保费 ${fm('车损险保费')}`));
+    blocks.push(text(`三者险    保额 ${formatMoney(d['三者保额'])}    保费 ${fm('三者保费')}`));
+    blocks.push(text(`医保外责任险    保费 ${fm('医保外保费')}`));
+    blocks.push(text(`外电网责任险    保费 ${fm('外电网保费')}`));
+    blocks.push(text(`司机座位险  保额 ${formatMoney(d['司机座位险保额'])}    保费 ${fm('司机座位险保费')}`));
+    blocks.push(text(`乘客座位险  保额 ${formatMoney(d['乘客座位险保额'])}    保费 ${fm('乘客座位险保费')}`));
+    blocks.push(text(`驾乘意外险  保额 ${formatMoney(d['驾乘意外保额'])}    保费 ${fm('驾乘意外保费')}`));
+    blocks.push(text(`商业险合计：${fm('商业险合计')}`));
+    blocks.push(divider());
+
+    // 新能源车损保全（三方案同报）
+    blocks.push(heading2('新能源车损保全（三方案同报）'));
+    blocks.push(text(`两年期            ${formatMoney(d['非车价格m'])}    合计 ${fm('新能源车损两年期')}`));
+    blocks.push(text(`三年期            ${formatMoney(d['非车价格u'])}    合计 ${fm('新能源车损三年期')}`));
+    blocks.push(text(`三年期+（尊享版）  ${formatMoney(d['非车价格u+'])}    合计 ${fm('新能源车损三年期+')}`));
+    blocks.push(divider());
+
+    // 费用汇总
+    blocks.push(heading2('费用汇总'));
+    blocks.push(text(`交强保费：${fm('交强保费')}`));
+    blocks.push(text(`车船税：${fm('车船税')}`));
+    blocks.push(text(`驾乘意外保费：${fm('驾乘意外保费')}`));
+    blocks.push(text(`保险公司保费（交强+商业+驾乘）：${formatMoney(toNumber(d['保险公司保费']))}`));
+    blocks.push(divider());
+
+    // 方案合计
+    blocks.push(heading2('方案合计'));
+    blocks.push(text(`方案一 · 新能源车损保全（两年期）合计：${fm('新能源车损两年期')}`));
+    blocks.push(text(`方案二 · 新能源车损保全（三年期）合计：${fm('新能源车损三年期')}`));
+    blocks.push(text(`方案三 · 新能源车损保全（三年期+尊享版）合计：${fm('新能源车损三年期+')}`));
+    blocks.push(divider());
+
+    // 说明
+    blocks.push(text('本报价单仅供参考，最终以正式保单为准'));
+    blocks.push(text(`生成时间：${new Date().toLocaleString('zh-CN')}`));
+
+    return blocks;
+}
+
 // ============================================================
 // HTTP 响应函数
 // ============================================================
@@ -367,7 +439,8 @@ function serveStatic(req, res) {
 // ============================================================
 
 /**
- * 异步生成报价单并上传到飞书"报价单附件"字段
+ * 异步生成报价单 PDF 并上传到飞书"报价单附件"字段
+ * 流程：获取记录 → 创建飞书文档 → 写入内容 → 导出PDF → 下载 → 上传附件 → 清理文档
  * @param {string} recordId 飞书记录ID
  * @returns {Promise<{ok:boolean, detail?:object, file_name?:string, error?:string}>}
  */
@@ -382,17 +455,38 @@ async function generateAndUpload(recordId) {
     const record = adaptRecord(openApiRecord);
     const detail = buildRecordDetail(record);
 
-    // 3. 生成纯文本报价单
-    const text = generateTextFromRecord(detail);
-    const fileName = `报价单_${Date.now()}.txt`;
+    // 3. 构建报价单飞书文档块
+    const docTitle = `保险报价确认单_${detail['保单编号'] || Date.now()}`;
+    const blocks = buildQuotationBlocks(detail);
 
-    // 4. 上传文件到飞书云空间
-    const fileToken = await feishu.uploadMedia(BASE_TOKEN, fileName, text);
+    // 4. 创建飞书云文档
+    const documentId = await feishu.createDocx(docTitle);
 
-    // 5. 更新记录的附件字段（覆盖式）
-    await feishu.updateRecordAttachment(BASE_TOKEN, TABLE_ID, recordId, fileToken, '报价单附件');
+    try {
+        // 5. 写入文档内容
+        await feishu.createDocBlocks(documentId, blocks);
 
-    return { ok: true, detail, file_name: fileName };
+        // 6. 创建导出任务（docx → pdf）
+        const ticket = await feishu.createExportTask(documentId, 'docx', 'pdf');
+
+        // 7. 轮询导出结果（最多 90 秒）
+        const { file_token: pdfToken } = await feishu.pollExportTask(ticket, 90000);
+
+        // 8. 下载 PDF 二进制
+        const pdfBuffer = await feishu.downloadExportedFile(pdfToken);
+
+        // 9. 上传 PDF 到飞书云空间
+        const fileName = `报价单_${detail['保单编号'] || Date.now()}.pdf`;
+        const fileToken = await feishu.uploadMedia(BASE_TOKEN, fileName, pdfBuffer);
+
+        // 10. 更新记录附件字段（覆盖式）
+        await feishu.updateRecordAttachment(BASE_TOKEN, TABLE_ID, recordId, fileToken, '报价单附件');
+
+        return { ok: true, detail, file_name: fileName };
+    } finally {
+        // 11. 清理临时飞书文档（无论成功失败都删除，避免云空间堆积）
+        await feishu.deleteDocx(documentId);
+    }
 }
 
 // ============================================================
