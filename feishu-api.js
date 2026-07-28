@@ -144,8 +144,8 @@ async function uploadMedia(appToken, fileName, fileContent) {
     const token = await getTenantToken();
     const url = `${FEISHU_BASE}/drive/v1/medias/upload_all`;
 
-    // 将文本内容转为 Buffer 再转 Blob
-    const fileBuffer = Buffer.from(fileContent, 'utf8');
+    // 支持传入字符串（txt）或 Buffer（PDF等二进制）
+    const fileBuffer = Buffer.isBuffer(fileContent) ? fileContent : Buffer.from(fileContent, 'utf8');
     const fileSize = fileBuffer.length;
 
     // 用 FormData 构建 multipart 请求
@@ -255,6 +255,188 @@ async function generateAndUploadQuotation(appToken, tableId, recordId, generateT
 }
 
 // ============================================================
+// 6. 飞书云文档（docx）— 创建、写入内容、删除
+// ============================================================
+
+/**
+ * 创建飞书云文档（docx 类型）
+ * @param {string} title 文档标题
+ * @returns {Promise<string>} document_id（根 block_id）
+ */
+async function createDocx(title) {
+    const token = await getTenantToken();
+    const url = `${FEISHU_BASE}/docx/v1/documents`;
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify({ title: title || '报价单' }),
+    });
+    const data = await resp.json();
+    if (data.code !== 0) {
+        throw new Error(`创建文档失败: ${data.msg || JSON.stringify(data)}`);
+    }
+    const docId = data.data && data.data.document && data.data.document.document_id;
+    if (!docId) throw new Error('创建文档成功但未返回 document_id');
+    console.log(`[飞书API] 文档已创建: ${title} → ${docId}`);
+    return docId;
+}
+
+/**
+ * 批量创建文档块（写入报价单内容）
+ * 根 block_id 就是 document_id 本身
+ * @param {string} documentId 文档ID
+ * @param {Array} blocks 文档块数组（符合飞书 docx block 结构）
+ * @returns {Promise<Array>} 创建的块数组
+ */
+async function createDocBlocks(documentId, blocks) {
+    const token = await getTenantToken();
+    const url = `${FEISHU_BASE}/docx/v1/documents/${documentId}/blocks/${documentId}/children`;
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify({ index: 0, children: blocks }),
+    });
+    const data = await resp.json();
+    if (data.code !== 0) {
+        throw new Error(`写入文档内容失败: ${data.msg || JSON.stringify(data)}`);
+    }
+    console.log(`[飞书API] 文档 ${documentId} 已写入 ${blocks.length} 个块`);
+    return (data.data && data.data.children) || [];
+}
+
+/**
+ * 删除飞书云文档（清理临时文档，避免云空间堆积）
+ * @param {string} documentId 文档ID
+ */
+async function deleteDocx(documentId) {
+    try {
+        const token = await getTenantToken();
+        const url = `${FEISHU_BASE}/drive/v1/files/${documentId}?type=docx`;
+        const resp = await fetch(url, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+        const data = await resp.json();
+        if (data.code === 0) {
+            console.log(`[飞书API] 临时文档 ${documentId} 已删除（清理）`);
+        } else {
+            console.warn(`[飞书API] 删除文档 ${documentId} 失败（不影响主流程）: ${data.msg}`);
+        }
+    } catch (e) {
+        console.warn(`[飞书API] 删除文档 ${documentId} 异常（不影响主流程）: ${e.message}`);
+    }
+}
+
+// ============================================================
+// 7. 导出云文档为 PDF（创建任务 → 轮询 → 下载）
+// ============================================================
+
+/**
+ * 创建导出任务（异步：将 docx 导出为 PDF）
+ * @param {string} documentId 文档 token
+ * @param {string} type 文档类型（docx）
+ * @param {string} fileExtension 导出格式（pdf）
+ * @returns {Promise<string>} ticket 导出任务ID
+ */
+async function createExportTask(documentId, type, fileExtension) {
+    const token = await getTenantToken();
+    const url = `${FEISHU_BASE}/drive/v1/export_tasks`;
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify({
+            file_extension: fileExtension || 'pdf',
+            token: documentId,
+            type: type || 'docx',
+        }),
+    });
+    const data = await resp.json();
+    if (data.code !== 0) {
+        throw new Error(`创建导出任务失败: ${data.msg || JSON.stringify(data)}`);
+    }
+    const ticket = data.data && data.data.ticket;
+    if (!ticket) throw new Error('创建导出任务成功但未返回 ticket');
+    console.log(`[飞书API] 导出任务已创建: ${ticket}`);
+    return ticket;
+}
+
+/**
+ * 查询导出任务结果
+ * @param {string} ticket 导出任务ID
+ * @returns {Promise<object>} { status, file_token, file_name, total_size }
+ */
+async function getExportTask(ticket) {
+    const token = await getTenantToken();
+    const url = `${FEISHU_BASE}/drive/v1/export_tasks/${ticket}`;
+    const resp = await fetch(url, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` },
+    });
+    const data = await resp.json();
+    if (data.code !== 0) {
+        throw new Error(`查询导出任务失败: ${data.msg || JSON.stringify(data)}`);
+    }
+    return (data.data && data.data.result) || {};
+}
+
+/**
+ * 轮询导出任务直到完成（导出文件10分钟后会删除，需及时下载）
+ * @param {string} ticket 导出任务ID
+ * @param {number} maxWaitMs 最大等待毫秒（默认 90 秒）
+ * @returns {Promise<{file_token: string, file_name: string}>}
+ */
+async function pollExportTask(ticket, maxWaitMs) {
+    const maxWait = maxWaitMs || 90000;
+    const interval = 2000;
+    const startTime = Date.now();
+    while (Date.now() - startTime < maxWait) {
+        const result = await getExportTask(ticket);
+        if (result.status === 'success') {
+            if (!result.file_token) throw new Error('导出成功但未返回 file_token');
+            console.log(`[飞书API] 导出完成: ${result.file_name || '报价单.pdf'} (${result.total_size || 0} bytes)`);
+            return { file_token: result.file_token, file_name: result.file_name || '报价单.pdf' };
+        }
+        if (result.status === 'failed') {
+            throw new Error(`导出失败: ${result.error_msg || '未知错误'}`);
+        }
+        // status === 'generating' 继续等待
+        await new Promise(r => setTimeout(r, interval));
+    }
+    throw new Error(`导出超时（${maxWait / 1000}秒），请稍后重试`);
+}
+
+/**
+ * 下载导出的文件（返回 PDF 二进制 Buffer）
+ * 注意：导出任务完成后 10 分钟内必须下载，否则文件被删除
+ * @param {string} fileToken 导出文件 token
+ * @returns {Promise<Buffer>} PDF 二进制内容
+ */
+async function downloadExportedFile(fileToken) {
+    const token = await getTenantToken();
+    const url = `${FEISHU_BASE}/drive/v1/export_tasks/file/${fileToken}`;
+    const resp = await fetch(url, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!resp.ok) {
+        throw new Error(`下载导出文件失败: HTTP ${resp.status}`);
+    }
+    const arrayBuffer = await resp.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    console.log(`[飞书API] 导出文件已下载: ${buffer.length} bytes`);
+    return buffer;
+}
+
+// ============================================================
 // 导出
 // ============================================================
 
@@ -265,4 +447,13 @@ module.exports = {
     uploadMedia,
     updateRecordAttachment,
     generateAndUploadQuotation,
+    // 飞书云文档（docx）
+    createDocx,
+    createDocBlocks,
+    deleteDocx,
+    // 导出 PDF
+    createExportTask,
+    getExportTask,
+    pollExportTask,
+    downloadExportedFile,
 };
