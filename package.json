@@ -13,7 +13,8 @@
     "pdfkit": "^0.15.0"
   },
   "nixpacks": {
-    "packages": ["fontconfig"]
+    "packages": ["fontconfig"],
+    "aptPkgs": ["fonts-noto-cjk"]
   },
   "keywords": [
     "feishu",
