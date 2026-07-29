@@ -444,11 +444,24 @@ function serveStatic(req, res) {
  * @param {string} recordId 飞书记录ID
  * @returns {Promise<{ok:boolean, detail?:object, file_name?:string, error?:string}>}
  */
-async function generateAndUpload(recordId) {
-    // 1. 获取记录
-    const openApiRecord = await feishu.getRecord(BASE_TOKEN, TABLE_ID, recordId);
+async function generateAndUpload(recordId, policyNumber) {
+    // 1. 获取记录（支持 record_id 或保单编号两种方式）
+    let openApiRecord = null;
+    let actualRecordId = recordId;
+
+    if (policyNumber) {
+        // 用保单编号查询
+        openApiRecord = await feishu.getRecordByPolicyNumber(BASE_TOKEN, TABLE_ID, policyNumber);
+        if (openApiRecord) {
+            actualRecordId = openApiRecord.record_id;
+        }
+    } else if (recordId) {
+        // 用 record_id 直接查询
+        openApiRecord = await feishu.getRecord(BASE_TOKEN, TABLE_ID, recordId);
+    }
+
     if (!openApiRecord) {
-        return { ok: false, error: `未找到记录: ${recordId}` };
+        return { ok: false, error: `未找到记录: ${policyNumber || recordId}` };
     }
 
     // 2. 适配记录格式并构建详情
@@ -480,7 +493,7 @@ async function generateAndUpload(recordId) {
         const fileToken = await feishu.uploadMedia(BASE_TOKEN, fileName, pdfBuffer);
 
         // 10. 更新记录附件字段（覆盖式）
-        await feishu.updateRecordAttachment(BASE_TOKEN, TABLE_ID, recordId, fileToken, '报价单附件');
+        await feishu.updateRecordAttachment(BASE_TOKEN, TABLE_ID, actualRecordId, fileToken, '报价单附件');
 
         return { ok: true, detail, file_name: fileName };
     } finally {
@@ -510,21 +523,23 @@ const server = http.createServer(async (req, res) => {
     // GET /api/generate — 手机端按钮触发，生成报价单，返回结果页
     if (req.method === 'GET' && url.pathname === '/api/generate') {
         const recordId = url.searchParams.get('record_id');
-        if (!recordId) {
+        const policyNumber = url.searchParams.get('policy_number');
+
+        if (!recordId && !policyNumber) {
             sendHtml(res, 400, renderResultPage({
                 ok: false,
                 title: '参数缺失',
-                message: '缺少 record_id 参数',
+                message: '缺少 record_id 或 policy_number 参数',
                 detail: '请通过飞书多维表格的"生成报价单"按钮访问',
             }));
             return;
         }
 
-        console.log(`[生成] record_id=${recordId} 开始...`);
+        console.log(`[生成] record_id=${recordId}, policy_number=${policyNumber} 开始...`);
         const startTime = Date.now();
 
         try {
-            const result = await generateAndUpload(recordId);
+            const result = await generateAndUpload(recordId, policyNumber);
             const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
             if (result.ok) {
