@@ -869,6 +869,42 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // GET /debug/font — 字体调试
+    if (req.method === 'GET' && url.pathname === '/debug/font') {
+        const fontDebug = {
+            CHINESE_FONT,
+            fontExists: null,
+            fontSize: null,
+            fontLoadTest: null,
+            checkedPaths: [],
+            dirname: __dirname,
+        };
+        for (const fp of candidateFonts) {
+            const exists = fs.existsSync(fp);
+            const stat = exists ? fs.statSync(fp) : null;
+            fontDebug.checkedPaths.push({ path: fp, exists, size: stat ? stat.size : null });
+        }
+        if (CHINESE_FONT && fs.existsSync(CHINESE_FONT)) {
+            try {
+                const PDFDocument = require('pdfkit');
+                const testDoc = new PDFDocument();
+                testDoc.registerFont('Chinese', CHINESE_FONT);
+                testDoc.font('Chinese');
+                testDoc.fontSize(12);
+                fontDebug.fontLoadTest = 'OK';
+                testDoc.end();
+            } catch (e) {
+                fontDebug.fontLoadTest = 'FAIL: ' + e.message;
+            }
+        } else if (CHINESE_FONT) {
+            fontDebug.fontLoadTest = 'SKIP: font file not found';
+        } else {
+            fontDebug.fontLoadTest = 'SKIP: no font path set';
+        }
+        sendJson(res, 200, fontDebug);
+        return;
+    }
+
     // 静态文件服务
     serveStatic(req, res);
 });
