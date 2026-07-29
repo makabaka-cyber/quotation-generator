@@ -134,6 +134,12 @@ async function getRecord(appToken, tableId, recordId) {
  */
 function normalizeFieldValue(value) {
     if (value === null || value === undefined) return value;
+
+    // 处理飞书 search API 返回的 {type, value} 包装格式（lookup/引用字段）
+    if (typeof value === 'object' && !Array.isArray(value) && 'value' in value && 'type' in value) {
+        return normalizeFieldValue(value.value);
+    }
+
     if (Array.isArray(value)) {
         if (value.length === 0) return null;
         if (value.length === 1) {
