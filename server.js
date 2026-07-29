@@ -29,6 +29,7 @@ let FONT_WORKED = false;
 
 // 优先检查项目内置字体
 const projectFonts = [
+    path.join(__dirname, 'fonts', 'NotoSansSC-Regular.ttf'),
     path.join(__dirname, 'fonts', 'SourceHanSansSC-Regular.otf'),
     path.join(__dirname, 'fonts', 'NotoSansCJK-Regular.ttf'),
     path.join(__dirname, 'fonts', 'NotoSansSC-Regular.otf'),
