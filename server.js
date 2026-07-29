@@ -22,21 +22,47 @@ const PORT = process.env.PORT || 8000;
 const BASE_TOKEN = process.env.BASE_TOKEN || 'Dt4kbDdd1a6OtkstVLXcLJjlneG';
 const TABLE_ID = process.env.TABLE_ID || 'tbluIyiU5i19TeqH';
 
-// 注册中文字体（系统字体路径，兼容 Windows/Linux/macOS）
+// 注册中文字体（系统字体路径 + 项目内置字体）
+// pdfkit 只支持 .ttf 和 .otf 格式，不支持 .ttc
 let CHINESE_FONT = null;
-const candidateFonts = [
-    'C:/Windows/Fonts/msyh.ttc',
-    'C:/Windows/Fonts/simhei.ttf',
-    'C:/Windows/Fonts/simsun.ttc',
-    '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
-    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
-    '/System/Library/Fonts/PingFang.ttc',
+let FONT_WORKED = false;
+
+// 优先检查项目内置字体
+const projectFonts = [
+    path.join(__dirname, 'fonts', 'SourceHanSansSC-Regular.otf'),
+    path.join(__dirname, 'fonts', 'NotoSansCJK-Regular.ttf'),
+    path.join(__dirname, 'fonts', 'NotoSansSC-Regular.otf'),
+    path.join(__dirname, 'fonts', 'wqy-microhei.ttf'),
+    path.join(__dirname, 'fonts', 'msyh.ttf'),
 ];
+
+const candidateFonts = [
+    // 项目内置字体（优先）
+    ...projectFonts,
+    // Windows .ttf
+    'C:/Windows/Fonts/msyh.ttf',
+    'C:/Windows/Fonts/simhei.ttf',
+    'C:/Windows/Fonts/simsun.ttf',
+    // Linux .ttf
+    '/usr/share/fonts/truetype/wqy/wqy-microhei.ttf',
+    '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttf',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttf',
+    '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttf',
+    '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttf',
+];
+
+// 检查字体文件
 for (const fp of candidateFonts) {
     if (fs.existsSync(fp)) {
         CHINESE_FONT = fp;
+        console.log(`[字体] 找到中文字体: ${fp}`);
         break;
     }
+}
+
+if (!CHINESE_FONT) {
+    console.log(`[字体] 未找到中文字体，将使用默认字体（中文可能显示为方框）`);
+    console.log(`[字体] 建议将中文字体文件放入项目 fonts/ 目录`);
 }
 
 // ============================================================
@@ -262,13 +288,24 @@ function generatePdf(detail) {
 
         const chunks = [];
         doc.on('data', (chunk) => chunks.push(chunk));
-        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('end', () => {
+            FONT_WORKED = !!CHINESE_FONT;
+            resolve(Buffer.concat(chunks));
+        });
         doc.on('error', reject);
 
-        // 注册中文字体
+        // 注册中文字体（尝试加载，失败则使用默认字体）
+        let hasChineseFont = false;
         if (CHINESE_FONT) {
-            doc.registerFont('Chinese', CHINESE_FONT);
-            doc.font('Chinese');
+            try {
+                doc.registerFont('Chinese', CHINESE_FONT);
+                doc.font('Chinese');
+                hasChineseFont = true;
+                console.log(`[PDF] 中文字体加载成功: ${CHINESE_FONT}`);
+            } catch (e) {
+                console.warn(`[PDF] 中文字体加载失败: ${e.message}，使用默认字体`);
+                hasChineseFont = false;
+            }
         }
 
         const pageWidth = doc.page.width;
@@ -307,7 +344,7 @@ function generatePdf(detail) {
             doc.fillColor(COLORS.darkText).fontSize(11).text(label, doc.page.margins.left + 10, y + 2);
             doc.fillColor(isHighlight ? COLORS.accent : COLORS.darkText).fontSize(11).font('Helvetica-Bold');
             doc.text(String(value), doc.page.margins.left + contentWidth - 100, y + 2, { width: 90, align: 'right' });
-            doc.font('Chinese');
+            if (hasChineseFont) doc.font('Chinese');
             doc.restore();
             return y + rowH + 2;
         }
