@@ -214,6 +214,17 @@ function buildRecordDetail(record) {
         '非车价格m': toNumber(record['非车价格m']),
         '非车价格u': toNumber(record['非车价格u']),
         '非车价格u+': toNumber(record['非车价格u+']),
+        // 各产品投保状态：不显示 / 只显示保额 / 正常显示
+        '交强险状态': record['交强险状态'] || '正常显示',
+        '车损状态': record['车损状态'] || '正常显示',
+        '新能源车损保全状态': record['新能源车损保全状态'] || '正常显示',
+        '三者状态': record['三者状态'] || '正常显示',
+        '医保外状态': record['医保外状态'] || '正常显示',
+        '外电网状态': record['外电网状态'] || '正常显示',
+        '司机座位险状态': record['司机座位险状态'] || '正常显示',
+        '乘客座位险状态': record['乘客座位险状态'] || '正常显示',
+        '驾乘意外状态': record['驾乘意外状态'] || '正常显示',
+        '车船税状态': record['车船税状态'] || '正常显示',
     };
 }
 
@@ -246,16 +257,26 @@ function generateTextFromRecord(detail) {
     t += dash + '\n';
     t += '  保障项目             保额        保费\n';
     t += dash + '\n';
-    t += `  交强险                —     ${fm('交强保费')}\n`;
-    t += `  车损险                —     ${fm('车损险保费')}\n`;
-    t += `  新能源车损保全   ${formatBaoE(d['非车价格m'])}     ${fm('新能源车损两年期')}\n`;
-    t += `  三者险        ${formatBaoE(d['三者保额'])}     ${fm('三者保费')}\n`;
-    t += `  医保外责任险          —     ${fm('医保外保费')}\n`;
-    t += `  外电网责任险          —     ${fm('外电网保费')}\n`;
-    t += `  司机座位险   ${formatBaoE(d['司机座位险保额'])}     ${fm('司机座位险保费')}\n`;
-    t += `  乘客座位险   ${formatBaoE(d['乘客座位险保额'])}     ${fm('乘客座位险保费')}\n`;
-    t += `  驾乘意外险   ${formatBaoE(d['驾乘意外保额'])}     ${fm('驾乘意外保费')}\n`;
-    t += `  车船税                —     ${fm('车船税')}\n`;
+
+    // 各产品定义（与PDF版本保持一致）
+    const textDefs = [
+        { name: '交强险', baoE: '—', premium: fm('交强保费'), statusKey: '交强险状态' },
+        { name: '车损险', baoE: '—', premium: fm('车损险保费'), statusKey: '车损状态' },
+        { name: '新能源车损保全', baoE: formatBaoE(d['非车价格m']), premium: fm('新能源车损两年期'), statusKey: '新能源车损保全状态' },
+        { name: '三者险', baoE: formatBaoE(d['三者保额']), premium: fm('三者保费'), statusKey: '三者状态' },
+        { name: '医保外责任险', baoE: '—', premium: fm('医保外保费'), statusKey: '医保外状态' },
+        { name: '外电网责任险', baoE: '—', premium: fm('外电网保费'), statusKey: '外电网状态' },
+        { name: '司机座位险', baoE: formatBaoE(d['司机座位险保额']), premium: fm('司机座位险保费'), statusKey: '司机座位险状态' },
+        { name: '乘客座位险', baoE: formatBaoE(d['乘客座位险保额']), premium: fm('乘客座位险保费'), statusKey: '乘客座位险状态' },
+        { name: '驾乘意外险', baoE: formatBaoE(d['驾乘意外保额']), premium: fm('驾乘意外保费'), statusKey: '驾乘意外状态' },
+        { name: '车船税', baoE: '—', premium: fm('车船税'), statusKey: '车船税状态' },
+    ];
+    for (const def of textDefs) {
+        const status = d[def.statusKey] || '正常显示';
+        if (status === '不显示') continue;
+        const premium = status === '只显示保额' ? '—' : def.premium;
+        t += `  ${def.name}  ${def.baoE}  ${premium}\n`;
+    }
     t += dash + '\n';
     t += `  商业险合计                    ${fm('商业险合计')}\n`;
     t += '\n';
@@ -372,6 +393,41 @@ function generatePdf(detail) {
         };
 
         // === 辅助函数 ===
+
+        /**
+         * 根据投保状态构建产品列表
+         * 状态规则：
+         * - "不显示"：跳过该行
+         * - "只显示保额"：显示产品名和保额，保费为 "-"
+         * - "正常显示"：显示完整信息
+         */
+        function buildItemsByStatus(detail) {
+            const d = detail;
+            const defs = [
+                { name: '交强险', baoE: '—', premium: fm('交强保费'), statusKey: '交强险状态' },
+                { name: '车损险', baoE: '—', premium: fm('车损险保费'), statusKey: '车损状态' },
+                { name: '新能源车损保全', baoE: formatBaoE(d['非车价格m']), premium: fm('新能源车损两年期'), statusKey: '新能源车损保全状态' },
+                { name: '三者险', baoE: formatBaoE(d['三者保额']), premium: fm('三者保费'), statusKey: '三者状态' },
+                { name: '医保外责任险', baoE: '—', premium: fm('医保外保费'), statusKey: '医保外状态' },
+                { name: '外电网责任险', baoE: '—', premium: fm('外电网保费'), statusKey: '外电网状态' },
+                { name: '司机座位险', baoE: formatBaoE(d['司机座位险保额']), premium: fm('司机座位险保费'), statusKey: '司机座位险状态' },
+                { name: '乘客座位险', baoE: formatBaoE(d['乘客座位险保额']), premium: fm('乘客座位险保费'), statusKey: '乘客座位险状态' },
+                { name: '驾乘意外险', baoE: formatBaoE(d['驾乘意外保额']), premium: fm('驾乘意外保费'), statusKey: '驾乘意外状态' },
+                { name: '车船税', baoE: '—', premium: fm('车船税'), statusKey: '车船税状态' },
+            ];
+            const items = [];
+            for (const def of defs) {
+                const status = d[def.statusKey] || '正常显示';
+                if (status === '不显示') continue;
+                if (status === '只显示保额') {
+                    items.push([def.name, def.baoE, '—']);
+                } else {
+                    items.push([def.name, def.baoE, def.premium]);
+                }
+            }
+            return items;
+        }
+
         function drawHeader(text, y) {
             doc.save();
             doc.rect(doc.page.margins.left, y - 4, contentWidth, 32).fill(COLORS.headerBg);
@@ -491,19 +547,8 @@ function generatePdf(detail) {
         // 表头
         y = drawTableRow(['保障项目', '保额', '保费'], y, true);
 
-        // 表格数据
-        const items = [
-            ['交强险', '—', fm('交强保费')],
-            ['车损险', '—', fm('车损险保费')],
-            ['新能源车损保全', formatBaoE(d['非车价格m']), fm('新能源车损两年期')],
-            ['三者险', formatBaoE(d['三者保额']), fm('三者保费')],
-            ['医保外责任险', '—', fm('医保外保费')],
-            ['外电网责任险', '—', fm('外电网保费')],
-            ['司机座位险', formatBaoE(d['司机座位险保额']), fm('司机座位险保费')],
-            ['乘客座位险', formatBaoE(d['乘客座位险保额']), fm('乘客座位险保费')],
-            ['驾乘意外险', formatBaoE(d['驾乘意外保额']), fm('驾乘意外保费')],
-            ['车船税', '—', fm('车船税')],
-        ];
+        // 表格数据（根据投保状态动态生成）
+        const items = buildItemsByStatus(d);
         for (const item of items) {
             y = drawTableRow(item, y, false);
         }
