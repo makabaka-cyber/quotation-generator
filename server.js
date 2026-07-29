@@ -196,7 +196,7 @@ function buildRecordDetail(record) {
         '交强保费': toNumber(record['交强保费']),
         '车船税': toNumber(record['车船税']),
         '车损险保费': toNumber(record['车损险保费']),
-        '医保外保费': toNumber(record['医保外保额'] !== undefined ? record['医保外保额'] : record['医保外保费']),
+        '医保外保费': toNumber(record['医保外保费']),
         '外电网保费': toNumber(record['外电网保费']),
         '三者保额': toNumber(record['三者保额']),
         '三者保费': toNumber(record['三者保费']),
