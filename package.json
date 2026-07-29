@@ -12,6 +12,9 @@
   "dependencies": {
     "pdfkit": "^0.15.0"
   },
+  "nixpacks": {
+    "packages": ["fontconfig"]
+  },
   "keywords": [
     "feishu",
     "bitable",
