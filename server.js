@@ -453,18 +453,23 @@ async function generateAndUpload(recordId, policyNumber) {
     const lookupValue = policyNumber || recordId;
 
     if (lookupValue) {
+        console.log(`[调试] lookupValue="${lookupValue}" length=${lookupValue.length}`);
+        // 清理可能的括号包裹
+        const cleanedValue = lookupValue.replace(/^[\(\[\{\"]+/, '').replace(/[\)\]\}\"]+$/, '');
+        console.log(`[调试] cleanedValue="${cleanedValue}" length=${cleanedValue.length}`);
+
         // 判断格式：record_id 通常以 "recv" 开头，保单编号以 "POL-" 开头
-        const isRecordId = lookupValue.startsWith('recv');
+        const isRecordId = cleanedValue.startsWith('recv');
 
         if (isRecordId) {
             // 直接用 record_id 查询
-            openApiRecord = await feishu.getRecord(BASE_TOKEN, TABLE_ID, lookupValue);
+            openApiRecord = await feishu.getRecord(BASE_TOKEN, TABLE_ID, cleanedValue);
             if (openApiRecord) {
                 actualRecordId = openApiRecord.record_id;
             }
         } else {
             // 用保单编号查询（所有非 recv 开头的值都当作保单编号处理）
-            openApiRecord = await feishu.getRecordByPolicyNumber(BASE_TOKEN, TABLE_ID, lookupValue);
+            openApiRecord = await feishu.getRecordByPolicyNumber(BASE_TOKEN, TABLE_ID, cleanedValue);
             if (openApiRecord) {
                 actualRecordId = openApiRecord.record_id;
             }
@@ -472,7 +477,7 @@ async function generateAndUpload(recordId, policyNumber) {
     }
 
     if (!openApiRecord) {
-        return { ok: false, error: `未找到记录: ${lookupValue}` };
+        return { ok: false, error: `未找到记录: ${lookupValue} (清理后: ${cleanedValue})` };
     }
 
     // 2. 适配记录格式并构建详情
