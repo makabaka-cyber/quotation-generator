@@ -262,7 +262,7 @@ function generateTextFromRecord(detail) {
     const textDefs = [
         { name: '交强险', baoE: '—', premium: fm('交强保费'), statusKey: '交强险状态' },
         { name: '车损险', baoE: '—', premium: fm('车损险保费'), statusKey: '车损状态' },
-        { name: '新能源车损保全', baoE: formatBaoE(d['非车价格m']), premium: fm('新能源车损两年期'), statusKey: '新能源车损保全状态' },
+        { name: '新能源车损保全', baoE: '—', premium: fm('非车价格m'), statusKey: '新能源车损保全状态' },
         { name: '三者险', baoE: formatBaoE(d['三者保额']), premium: fm('三者保费'), statusKey: '三者状态' },
         { name: '医保外责任险', baoE: '—', premium: fm('医保外保费'), statusKey: '医保外状态' },
         { name: '外电网责任险', baoE: '—', premium: fm('外电网保费'), statusKey: '外电网状态' },
@@ -406,7 +406,7 @@ function generatePdf(detail) {
             const defs = [
                 { name: '交强险', baoE: '—', premium: fm('交强保费'), statusKey: '交强险状态' },
                 { name: '车损险', baoE: '—', premium: fm('车损险保费'), statusKey: '车损状态' },
-                { name: '新能源车损保全', baoE: formatBaoE(d['非车价格m']), premium: fm('新能源车损两年期'), statusKey: '新能源车损保全状态' },
+                { name: '新能源车损保全', baoE: '—', premium: fm('非车价格m'), statusKey: '新能源车损保全状态' },
                 { name: '三者险', baoE: formatBaoE(d['三者保额']), premium: fm('三者保费'), statusKey: '三者状态' },
                 { name: '医保外责任险', baoE: '—', premium: fm('医保外保费'), statusKey: '医保外状态' },
                 { name: '外电网责任险', baoE: '—', premium: fm('外电网保费'), statusKey: '外电网状态' },
