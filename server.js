@@ -316,6 +316,15 @@ function generatePdf(detail) {
             }
         }
 
+        // 字体辅助函数 - 安全使用字体
+        function useFont() {
+            if (hasChineseFont) {
+                doc.font('Chinese');
+            } else {
+                doc.font('Helvetica');
+            }
+        }
+
         const pageWidth = doc.page.width;
         const contentWidth = pageWidth - doc.page.margins.left - doc.page.margins.right;
 
@@ -387,7 +396,8 @@ function generatePdf(detail) {
 
         function drawSectionTitle(text, y) {
             doc.save();
-            doc.fillColor(COLORS.primary).fontSize(13).font('Chinese');
+            useFont();
+            doc.fillColor(COLORS.primary).fontSize(13);
             doc.text(text, doc.page.margins.left, y);
             doc.strokeColor(COLORS.primary).lineWidth(1.5);
             doc.moveTo(doc.page.margins.left, y + 22).lineTo(doc.page.margins.left + 60, y + 22).stroke();
@@ -414,7 +424,8 @@ function generatePdf(detail) {
 
         // 主标题
         doc.save();
-        doc.fillColor(COLORS.primary).fontSize(22).font('Chinese');
+        useFont();
+        doc.fillColor(COLORS.primary).fontSize(22);
         doc.text('保 险 报 价 确 认 单', { align: 'center', width: contentWidth });
         doc.restore();
         y += 30;
@@ -502,7 +513,8 @@ function generatePdf(detail) {
         // 底部说明
         y += 10;
         doc.save();
-        doc.fillColor(COLORS.grayText).fontSize(9).font('Chinese');
+        useFont();
+        doc.fillColor(COLORS.grayText).fontSize(9);
         doc.text('本报价单仅供参考，最终以正式保单为准', doc.page.margins.left, y, { align: 'left' });
         y += 16;
         doc.text(`生成时间：${new Date().toLocaleString('zh-CN')}`, doc.page.margins.left, y);
