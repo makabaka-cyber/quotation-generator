@@ -355,6 +355,7 @@ function generatePdf(detail) {
         function drawHeader(text, y) {
             doc.save();
             doc.rect(doc.page.margins.left, y - 4, contentWidth, 32).fill(COLORS.headerBg);
+            useFont();
             doc.fillColor(COLORS.white).fontSize(14).text(text, doc.page.margins.left + 12, y + 2);
             doc.restore();
             return y + 34;
@@ -366,10 +367,11 @@ function generatePdf(detail) {
             if (isHighlight) {
                 doc.rect(doc.page.margins.left, y - 2, contentWidth, rowH).fill(COLORS.lightBg);
             }
+            useFont();
             doc.fillColor(COLORS.darkText).fontSize(11).text(label, doc.page.margins.left + 10, y + 2);
-            doc.fillColor(isHighlight ? COLORS.accent : COLORS.darkText).fontSize(11).font('Helvetica-Bold');
+            doc.fillColor(isHighlight ? COLORS.accent : COLORS.darkText).fontSize(11);
+            if (hasChineseFont) doc.font('Chinese'); else doc.font('Helvetica-Bold');
             doc.text(String(value), doc.page.margins.left + contentWidth - 100, y + 2, { width: 90, align: 'right' });
-            if (hasChineseFont) doc.font('Chinese');
             doc.restore();
             return y + rowH + 2;
         }
@@ -385,10 +387,12 @@ function generatePdf(detail) {
                 // 背景
                 if (isHeader) {
                     doc.rect(x, y - 2, w, rowH).fill(COLORS.headerBg);
-                    doc.fillColor(COLORS.white).fontSize(11).font('Helvetica-Bold');
+                    useFont();
+                    doc.fillColor(COLORS.white).fontSize(11);
                 } else {
                     const bgColor = i % 2 === 0 ? COLORS.white : COLORS.lightBg;
                     doc.rect(x, y - 2, w, rowH).fill(bgColor);
+                    useFont();
                     doc.fillColor(COLORS.darkText).fontSize(10.5);
                 }
                 // 边框
