@@ -129,6 +129,32 @@ async function getRecord(appToken, tableId, recordId) {
     return data.data && data.data.record;
 }
 
+/**
+ * 按保单编号搜索记录（先拉取所有记录再过滤）
+ * @param {string} appToken 多维表格 app_token
+ * @param {string} tableId 表格ID
+ * @param {string} policyNumber 保单编号（如 POL-000012）
+ * @returns {Promise<{record_id, fields}|null>}
+ */
+async function getRecordByPolicyNumber(appToken, tableId, policyNumber) {
+    const records = await searchRecords(appToken, tableId);
+    for (const record of records) {
+        const fields = record.fields || {};
+        const policyNo = fields['保单编号'];
+        // 自动编号字段可能是对象 {type, value} 格式
+        let value = '';
+        if (typeof policyNo === 'object' && policyNo !== null) {
+            value = policyNo.value || policyNo.text || JSON.stringify(policyNo);
+        } else {
+            value = String(policyNo || '');
+        }
+        if (value === policyNumber) {
+            return record;
+        }
+    }
+    return null;
+}
+
 // ============================================================
 // 3. 文件上传到飞书云空间
 // ============================================================
@@ -444,6 +470,7 @@ module.exports = {
     getTenantToken,
     searchRecords,
     getRecord,
+    getRecordByPolicyNumber,
     uploadMedia,
     updateRecordAttachment,
     generateAndUploadQuotation,
