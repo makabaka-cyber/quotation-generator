@@ -193,9 +193,11 @@ function buildRecordDetail(record) {
         '保险公司': record['保险公司'] || '',
         '保险公司logo': record['保险公司logo'] || '',
         '保单编号': record['保单编号'] || '',
+        '交强保额': toNumber(record['交强保额']) || 20,
         '交强保费': toNumber(record['交强保费']),
         '车船税': toNumber(record['车船税']),
         '车损险保费': toNumber(record['车损险保费']),
+        '医保外保额': toNumber(record['医保外保额']),
         '医保外保费': toNumber(record['医保外保费']),
         '外电网保费': toNumber(record['外电网保费']),
         '三者保额': toNumber(record['三者保额']),
@@ -260,11 +262,11 @@ function generateTextFromRecord(detail) {
 
     // 各产品定义（与PDF版本保持一致）
     const textDefs = [
-        { name: '交强险', baoE: '—', premium: fm('交强保费'), statusKey: '交强险状态' },
+        { name: '交强险', baoE: formatBaoE(d['交强保额']), premium: fm('交强保费'), statusKey: '交强险状态' },
         { name: '车损险', baoE: '—', premium: fm('车损险保费'), statusKey: '车损状态' },
         { name: '新能源车损保全', baoE: '—', premium: fm('非车价格m'), statusKey: '新能源车损保全状态' },
         { name: '三者险', baoE: formatBaoE(d['三者保额']), premium: fm('三者保费'), statusKey: '三者状态' },
-        { name: '医保外责任险', baoE: '—', premium: fm('医保外保费'), statusKey: '医保外状态' },
+        { name: '医保外责任险', baoE: formatBaoE(d['医保外保额']), premium: fm('医保外保费'), statusKey: '医保外状态' },
         { name: '外电网责任险', baoE: '—', premium: fm('外电网保费'), statusKey: '外电网状态' },
         { name: '司机座位险', baoE: formatBaoE(d['司机座位险保额']), premium: fm('司机座位险保费'), statusKey: '司机座位险状态' },
         { name: '乘客座位险', baoE: formatBaoE(d['乘客座位险保额']), premium: fm('乘客座位险保费'), statusKey: '乘客座位险状态' },
@@ -404,11 +406,11 @@ function generatePdf(detail) {
         function buildItemsByStatus(detail) {
             const d = detail;
             const defs = [
-                { name: '交强险', baoE: '—', premium: fm('交强保费'), statusKey: '交强险状态' },
+                { name: '交强险', baoE: formatBaoE(d['交强保额']), premium: fm('交强保费'), statusKey: '交强险状态' },
                 { name: '车损险', baoE: '—', premium: fm('车损险保费'), statusKey: '车损状态' },
                 { name: '新能源车损保全', baoE: '—', premium: fm('非车价格m'), statusKey: '新能源车损保全状态' },
                 { name: '三者险', baoE: formatBaoE(d['三者保额']), premium: fm('三者保费'), statusKey: '三者状态' },
-                { name: '医保外责任险', baoE: '—', premium: fm('医保外保费'), statusKey: '医保外状态' },
+                { name: '医保外责任险', baoE: formatBaoE(d['医保外保额']), premium: fm('医保外保费'), statusKey: '医保外状态' },
                 { name: '外电网责任险', baoE: '—', premium: fm('外电网保费'), statusKey: '外电网状态' },
                 { name: '司机座位险', baoE: formatBaoE(d['司机座位险保额']), premium: fm('司机座位险保费'), statusKey: '司机座位险状态' },
                 { name: '乘客座位险', baoE: formatBaoE(d['乘客座位险保额']), premium: fm('乘客座位险保费'), statusKey: '乘客座位险状态' },
