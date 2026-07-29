@@ -419,20 +419,27 @@ async function deleteDocx(documentId) {
 async function createExportTask(documentId, type, fileExtension) {
     const token = await getTenantToken();
     const url = `${FEISHU_BASE}/drive/v1/export_tasks`;
+    
+    const requestBody = {
+        file_extension: fileExtension || 'pdf',
+        token: documentId,
+        type: type || 'docx',
+    };
+    console.log(`[调试] createExportTask 请求体: ${JSON.stringify(requestBody)}`);
+    
     const resp = await fetch(url, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json; charset=utf-8',
         },
-        body: JSON.stringify({
-            file_extension: fileExtension || 'pdf',
-            token: documentId,
-            type: type || 'docx',
-        }),
+        body: JSON.stringify(requestBody),
     });
     const data = await resp.json();
+    console.log(`[调试] createExportTask 响应: code=${data.code}, msg=${data.msg}`);
+    
     if (data.code !== 0) {
+        console.error(`[调试] 完整错误响应: ${JSON.stringify(data)}`);
         throw new Error(`创建导出任务失败: ${data.msg || JSON.stringify(data)}`);
     }
     const ticket = data.data && data.data.ticket;
