@@ -130,6 +130,34 @@ async function getRecord(appToken, tableId, recordId) {
 }
 
 /**
+ * 规范化飞书OpenAPI字段值（从 server.js 复制过来，供 feishu-api.js 内部使用）
+ */
+function normalizeFieldValue(value) {
+    if (value === null || value === undefined) return value;
+    if (Array.isArray(value)) {
+        if (value.length === 0) return null;
+        if (value.length === 1) {
+            const item = value[0];
+            if (typeof item === 'object' && item !== null && 'text' in item) {
+                return item.text;
+            }
+            if (typeof item === 'object' && item !== null && !('file_token' in item)) {
+                return item.value !== undefined ? item.value : item;
+            }
+            return item;
+        }
+        if (value.length > 1) {
+            const first = value[0];
+            if (typeof first === 'object' && first !== null && 'text' in first) {
+                return value.map(v => v.text || '').join('');
+            }
+        }
+        return value;
+    }
+    return value;
+}
+
+/**
  * 按保单编号搜索记录（先拉取所有记录再过滤）
  * @param {string} appToken 多维表格 app_token
  * @param {string} tableId 表格ID
@@ -140,14 +168,9 @@ async function getRecordByPolicyNumber(appToken, tableId, policyNumber) {
     const records = await searchRecords(appToken, tableId);
     for (const record of records) {
         const fields = record.fields || {};
-        const policyNo = fields['保单编号'];
-        // 自动编号字段可能是对象 {type, value} 格式
-        let value = '';
-        if (typeof policyNo === 'object' && policyNo !== null) {
-            value = policyNo.value || policyNo.text || JSON.stringify(policyNo);
-        } else {
-            value = String(policyNo || '');
-        }
+        const rawValue = fields['保单编号'];
+        const normalizedValue = normalizeFieldValue(rawValue);
+        const value = String(normalizedValue || '');
         if (value === policyNumber) {
             return record;
         }
