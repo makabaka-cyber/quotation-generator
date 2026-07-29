@@ -220,6 +220,8 @@ async function uploadMedia(appToken, fileName, fileContent) {
     const fileBuffer = Buffer.isBuffer(fileContent) ? fileContent : Buffer.from(fileContent, 'utf8');
     const fileSize = fileBuffer.length;
 
+    console.log(`[调试] uploadMedia: fileName=${fileName}, size=${fileSize}, parent_type=bitable_file, parent_node=${appToken}`);
+
     // 用 FormData 构建 multipart 请求
     const formData = new FormData();
     formData.append('file_name', fileName);
@@ -237,8 +239,10 @@ async function uploadMedia(appToken, fileName, fileContent) {
     });
 
     const data = await resp.json();
+    console.log(`[调试] uploadMedia 响应: code=${data.code}, msg=${data.msg}`);
 
     if (data.code !== 0) {
+        console.error(`[调试] 完整错误: ${JSON.stringify(data)}`);
         throw new Error(`上传文件失败: ${data.msg || JSON.stringify(data)}`);
     }
 
