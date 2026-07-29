@@ -15,11 +15,29 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const PDFDocument = require('pdfkit');
 const feishu = require('./feishu-api');
 
 const PORT = process.env.PORT || 8000;
 const BASE_TOKEN = process.env.BASE_TOKEN || 'Dt4kbDdd1a6OtkstVLXcLJjlneG';
 const TABLE_ID = process.env.TABLE_ID || 'tbluIyiU5i19TeqH';
+
+// 注册中文字体（系统字体路径，兼容 Windows/Linux/macOS）
+let CHINESE_FONT = null;
+const candidateFonts = [
+    'C:/Windows/Fonts/msyh.ttc',
+    'C:/Windows/Fonts/simhei.ttf',
+    'C:/Windows/Fonts/simsun.ttc',
+    '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+    '/System/Library/Fonts/PingFang.ttc',
+];
+for (const fp of candidateFonts) {
+    if (fs.existsSync(fp)) {
+        CHINESE_FONT = fp;
+        break;
+    }
+}
 
 // ============================================================
 // 工具函数（从原 server.js 保留，不修改）
@@ -222,75 +240,236 @@ function generateTextFromRecord(detail) {
 }
 
 /**
- * 构建报价单的飞书文档块数组（用于生成 PDF）
+ * 使用 pdfkit 生成精美 PDF 报价单
  * 严格遵循约束：不含"安心包"/"非车"字样，统一为"新能源车损保全"
  * @param {object} detail 记录详情（buildRecordDetail 返回值）
- * @returns {Array} 飞书 docx blocks 数组
+ * @returns {Promise<Buffer>} PDF 文件 Buffer
  */
-function buildQuotationBlocks(detail) {
-    const d = detail || {};
-    const get = (k) => (d[k] !== undefined && d[k] !== null && d[k] !== '') ? d[k] : '—';
-    const fm = (k) => formatMoney(d[k]);
+function generatePdf(detail) {
+    return new Promise((resolve, reject) => {
+        const d = detail || {};
+        const get = (k) => (d[k] !== undefined && d[k] !== null && d[k] !== '') ? d[k] : '—';
+        const fm = (k) => formatMoney(d[k]);
 
-    // 文档块构造器（符合飞书 docx block 结构）
-    const textRun = (content) => ({ text_run: { content: String(content), text_element_style: {} } });
-    const heading1 = (content) => ({ block_type: 3, heading1: { elements: [textRun(content)] } });
-    const heading2 = (content) => ({ block_type: 4, heading2: { elements: [textRun(content)] } });
-    const text = (content) => ({ block_type: 2, text: { elements: [textRun(content)], style: {} } });
-    const divider = () => ({ block_type: 22, divider: {} });
+        const doc = new PDFDocument({
+            size: 'A4',
+            margins: { top: 50, bottom: 50, left: 45, right: 45 },
+            info: {
+                Title: '保险报价确认单',
+                Author: '报价单生成系统',
+            },
+        });
 
-    const blocks = [];
-    // 标题
-    blocks.push(heading1('保险报价确认单'));
-    blocks.push(text(`承保公司：${get('保险公司')}`));
-    blocks.push(text(`保单编号：${get('保单编号')}`));
-    blocks.push(divider());
+        const chunks = [];
+        doc.on('data', (chunk) => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', reject);
 
-    // 客户信息
-    blocks.push(heading2('客户信息'));
-    blocks.push(text(`客户：${get('客户信息')}`));
-    blocks.push(text(`车型：${get('车型')}`));
-    blocks.push(divider());
+        // 注册中文字体
+        if (CHINESE_FONT) {
+            doc.registerFont('Chinese', CHINESE_FONT);
+            doc.font('Chinese');
+        }
 
-    // 保障项目
-    blocks.push(heading2('保障项目'));
-    blocks.push(text(`车损险          保费 ${fm('车损险保费')}`));
-    blocks.push(text(`三者险    保额 ${formatMoney(d['三者保额'])}    保费 ${fm('三者保费')}`));
-    blocks.push(text(`医保外责任险    保费 ${fm('医保外保费')}`));
-    blocks.push(text(`外电网责任险    保费 ${fm('外电网保费')}`));
-    blocks.push(text(`司机座位险  保额 ${formatMoney(d['司机座位险保额'])}    保费 ${fm('司机座位险保费')}`));
-    blocks.push(text(`乘客座位险  保额 ${formatMoney(d['乘客座位险保额'])}    保费 ${fm('乘客座位险保费')}`));
-    blocks.push(text(`驾乘意外险  保额 ${formatMoney(d['驾乘意外保额'])}    保费 ${fm('驾乘意外保费')}`));
-    blocks.push(text(`商业险合计：${fm('商业险合计')}`));
-    blocks.push(divider());
+        const pageWidth = doc.page.width;
+        const contentWidth = pageWidth - doc.page.margins.left - doc.page.margins.right;
 
-    // 新能源车损保全（三方案同报）
-    blocks.push(heading2('新能源车损保全（三方案同报）'));
-    blocks.push(text(`两年期            ${formatMoney(d['非车价格m'])}    合计 ${fm('新能源车损两年期')}`));
-    blocks.push(text(`三年期            ${formatMoney(d['非车价格u'])}    合计 ${fm('新能源车损三年期')}`));
-    blocks.push(text(`三年期+（尊享版）  ${formatMoney(d['非车价格u+'])}    合计 ${fm('新能源车损三年期+')}`));
-    blocks.push(divider());
+        // === 颜色方案 ===
+        const COLORS = {
+            primary: '#1e3c72',       // 深蓝
+            accent: '#2a5298',        // 中蓝
+            headerBg: '#1e3c72',      // 表头背景
+            lightBg: '#f0f4fa',       // 浅蓝背景
+            darkText: '#1a1a2e',      // 深色文字
+            grayText: '#6b7280',      // 灰色文字
+            white: '#ffffff',
+            border: '#e2e8f0',       // 边框
+            green: '#059669',         // 绿色
+            orange: '#ea580c',       // 橙色
+            red: '#dc2626',          // 红色
+        };
 
-    // 费用汇总
-    blocks.push(heading2('费用汇总'));
-    blocks.push(text(`交强保费：${fm('交强保费')}`));
-    blocks.push(text(`车船税：${fm('车船税')}`));
-    blocks.push(text(`驾乘意外保费：${fm('驾乘意外保费')}`));
-    blocks.push(text(`保险公司保费（交强+商业+驾乘）：${formatMoney(toNumber(d['保险公司保费']))}`));
-    blocks.push(divider());
+        // === 辅助函数 ===
+        function drawHeader(text, y) {
+            doc.save();
+            doc.rect(doc.page.margins.left, y - 4, contentWidth, 32).fill(COLORS.headerBg);
+            doc.fillColor(COLORS.white).fontSize(14).text(text, doc.page.margins.left + 12, y + 2);
+            doc.restore();
+            return y + 34;
+        }
 
-    // 方案合计
-    blocks.push(heading2('方案合计'));
-    blocks.push(text(`方案一 · 新能源车损保全（两年期）合计：${fm('新能源车损两年期')}`));
-    blocks.push(text(`方案二 · 新能源车损保全（三年期）合计：${fm('新能源车损三年期')}`));
-    blocks.push(text(`方案三 · 新能源车损保全（三年期+尊享版）合计：${fm('新能源车损三年期+')}`));
-    blocks.push(divider());
+        function drawRow(label, value, y, isHighlight) {
+            const rowH = 24;
+            doc.save();
+            if (isHighlight) {
+                doc.rect(doc.page.margins.left, y - 2, contentWidth, rowH).fill(COLORS.lightBg);
+            }
+            doc.fillColor(COLORS.darkText).fontSize(11).text(label, doc.page.margins.left + 10, y + 2);
+            doc.fillColor(isHighlight ? COLORS.accent : COLORS.darkText).fontSize(11).font('Helvetica-Bold');
+            doc.text(String(value), doc.page.margins.left + contentWidth - 100, y + 2, { width: 90, align: 'right' });
+            doc.font('Chinese');
+            doc.restore();
+            return y + rowH + 2;
+        }
 
-    // 说明
-    blocks.push(text('本报价单仅供参考，最终以正式保单为准'));
-    blocks.push(text(`生成时间：${new Date().toLocaleString('zh-CN')}`));
+        function drawTableRow(cells, y, isHeader) {
+            const rowH = 26;
+            const colWidths = [contentWidth * 0.4, contentWidth * 0.3, contentWidth * 0.3];
 
-    return blocks;
+            doc.save();
+            let x = doc.page.margins.left;
+            for (let i = 0; i < cells.length; i++) {
+                const w = colWidths[i];
+                // 背景
+                if (isHeader) {
+                    doc.rect(x, y - 2, w, rowH).fill(COLORS.headerBg);
+                    doc.fillColor(COLORS.white).fontSize(11).font('Helvetica-Bold');
+                } else {
+                    const bgColor = i % 2 === 0 ? COLORS.white : COLORS.lightBg;
+                    doc.rect(x, y - 2, w, rowH).fill(bgColor);
+                    doc.fillColor(COLORS.darkText).fontSize(10.5);
+                }
+                // 边框
+                doc.strokeColor(COLORS.border).lineWidth(0.5);
+                doc.rect(x, y - 2, w, rowH).stroke();
+                // 文字
+                doc.text(String(cells[i]), x + 8, y + 2, { width: w - 16, align: i === 2 ? 'right' : 'left' });
+                x += w;
+            }
+            doc.restore();
+            return y + rowH;
+        }
+
+        function drawSectionTitle(text, y) {
+            doc.save();
+            doc.fillColor(COLORS.primary).fontSize(13).font('Chinese');
+            doc.text(text, doc.page.margins.left, y);
+            doc.strokeColor(COLORS.primary).lineWidth(1.5);
+            doc.moveTo(doc.page.margins.left, y + 22).lineTo(doc.page.margins.left + 60, y + 22).stroke();
+            doc.restore();
+            return y + 30;
+        }
+
+        function drawSeparator(y) {
+            doc.save();
+            doc.strokeColor(COLORS.border).lineWidth(0.5);
+            doc.moveTo(doc.page.margins.left, y).lineTo(doc.page.margins.left + contentWidth, y).stroke();
+            doc.restore();
+            return y + 8;
+        }
+
+        // === 开始绘制 ===
+        let y = doc.page.margins.top;
+
+        // 顶部装饰线
+        doc.save();
+        doc.rect(doc.page.margins.left, y, contentWidth, 4).fill(COLORS.primary);
+        doc.restore();
+        y += 14;
+
+        // 主标题
+        doc.save();
+        doc.fillColor(COLORS.primary).fontSize(22).font('Chinese');
+        doc.text('保 险 报 价 确 认 单', { align: 'center', width: contentWidth });
+        doc.restore();
+        y += 30;
+
+        // 副标题装饰
+        doc.save();
+        doc.strokeColor(COLORS.accent).lineWidth(1);
+        doc.moveTo(doc.page.margins.left + contentWidth * 0.25, y).lineTo(doc.page.margins.left + contentWidth * 0.45, y).stroke();
+        doc.moveTo(doc.page.margins.left + contentWidth * 0.55, y).lineTo(doc.page.margins.left + contentWidth * 0.75, y).stroke();
+        doc.restore();
+        y += 12;
+
+        // 基本信息
+        y = drawHeader('基 本 信 息', y + 10);
+        y = drawRow('承保公司', get('保险公司'), y, false);
+        y = drawRow('保单编号', get('保单编号'), y, false);
+        y = drawSeparator(y);
+
+        // 客户信息
+        y = drawHeader('客 户 信 息', y + 8);
+        y = drawRow('客户', get('客户信息'), y, false);
+        y = drawRow('车型', get('车型'), y, false);
+        y = drawSeparator(y);
+
+        // 保障项目表格
+        y = drawHeader('保 障 项 目 明 细', y + 8);
+        y += 8;
+
+        // 表头
+        y = drawTableRow(['保障项目', '保额', '保费'], y, true);
+
+        // 表格数据
+        const items = [
+            ['车损险', '—', fm('车损险保费')],
+            ['三者险', formatMoney(d['三者保额']), fm('三者保费')],
+            ['医保外责任险', '—', fm('医保外保费')],
+            ['外电网责任险', '—', fm('外电网保费')],
+            ['司机座位险', formatMoney(d['司机座位险保额']), fm('司机座位险保费')],
+            ['乘客座位险', formatMoney(d['乘客座位险保额']), fm('乘客座位险保费')],
+            ['驾乘意外险', formatMoney(d['驾乘意外保额']), fm('驾乘意外保费')],
+        ];
+        for (const item of items) {
+            y = drawTableRow(item, y, false);
+        }
+
+        // 商业险合计
+        y += 6;
+        y = drawRow('商业险合计', fm('商业险合计'), y, true);
+        y = drawSeparator(y);
+
+        // 新能源车损保全
+        y = drawHeader('新能源车损保全（三方案同报）', y + 8);
+        y += 8;
+
+        // 方案表头
+        y = drawTableRow(['方案', '保障期限', '合计金额'], y, true);
+
+        // 方案数据
+        y = drawTableRow(['方案一', '两年期', fm('新能源车损两年期')], y, false);
+        y = drawTableRow(['方案二', '三年期', fm('新能源车损三年期')], y, false);
+        y = drawTableRow(['方案三', '三年期+（尊享版）', fm('新能源车损三年期+')], y, false);
+        y = drawSeparator(y);
+
+        // 费用汇总
+        y = drawHeader('费 用 汇 总', y + 8);
+        y += 8;
+
+        y = drawRow('交强保费', fm('交强保费'), y, false);
+        y = drawRow('车船税', fm('车船税'), y, false);
+        y = drawRow('驾乘意外保费', fm('驾乘意外保费'), y, false);
+        y = drawRow('保险公司保费（交强+商业+驾乘）', formatMoney(toNumber(d['保险公司保费'])), y, true);
+        y = drawSeparator(y);
+
+        // 方案合计总览
+        y = drawSectionTitle('三方案总价对比', y);
+        y += 6;
+
+        // 方案对比表头
+        y = drawTableRow(['方案', '保障期限', '总价'], y, true);
+        y = drawTableRow(['方案一', '新能源车损保全（两年期）', fm('新能源车损两年期')], y, false);
+        y = drawTableRow(['方案二', '新能源车损保全（三年期）', fm('新能源车损三年期')], y, false);
+        y = drawTableRow(['方案三', '新能源车损保全（三年期+尊享版）', fm('新能源车损三年期+')], y, false);
+        y = drawSeparator(y);
+
+        // 底部说明
+        y += 10;
+        doc.save();
+        doc.fillColor(COLORS.grayText).fontSize(9).font('Chinese');
+        doc.text('本报价单仅供参考，最终以正式保单为准', doc.page.margins.left, y, { align: 'left' });
+        y += 16;
+        doc.text(`生成时间：${new Date().toLocaleString('zh-CN')}`, doc.page.margins.left, y);
+        doc.restore();
+
+        // 底部装饰线
+        doc.save();
+        doc.rect(doc.page.margins.left, doc.page.height - 20, contentWidth, 3).fill(COLORS.primary);
+        doc.restore();
+
+        doc.end();
+    });
 }
 
 // ============================================================
@@ -440,7 +619,7 @@ function serveStatic(req, res) {
 
 /**
  * 异步生成报价单 PDF 并上传到飞书"报价单附件"字段
- * 流程：获取记录 → 创建飞书文档 → 写入内容 → 导出PDF → 下载 → 上传附件 → 清理文档
+ * 流程：获取记录 → pdfkit 生成精美 PDF → 上传飞书附件 → 更新记录
  * @param {string} recordId 飞书记录ID
  * @returns {Promise<{ok:boolean, detail?:object, file_name?:string, error?:string}>}
  */
@@ -449,26 +628,21 @@ async function generateAndUpload(recordId, policyNumber) {
     let openApiRecord = null;
     let actualRecordId = recordId;
 
-    // 优先使用 policy_number 参数
     const lookupValue = policyNumber || recordId;
 
     if (lookupValue) {
         console.log(`[调试] lookupValue="${lookupValue}" length=${lookupValue.length}`);
-        // 清理可能的括号包裹
         const cleanedValue = lookupValue.replace(/^[\(\[\{\"]+/, '').replace(/[\)\]\}\"]+$/, '');
         console.log(`[调试] cleanedValue="${cleanedValue}" length=${cleanedValue.length}`);
 
-        // 判断格式：record_id 通常以 "recv" 开头，保单编号以 "POL-" 开头
         const isRecordId = cleanedValue.startsWith('recv');
 
         if (isRecordId) {
-            // 直接用 record_id 查询
             openApiRecord = await feishu.getRecord(BASE_TOKEN, TABLE_ID, cleanedValue);
             if (openApiRecord) {
                 actualRecordId = openApiRecord.record_id;
             }
         } else {
-            // 用保单编号查询（所有非 recv 开头的值都当作保单编号处理）
             openApiRecord = await feishu.getRecordByPolicyNumber(BASE_TOKEN, TABLE_ID, cleanedValue);
             if (openApiRecord) {
                 actualRecordId = openApiRecord.record_id;
@@ -477,45 +651,29 @@ async function generateAndUpload(recordId, policyNumber) {
     }
 
     if (!openApiRecord) {
-        return { ok: false, error: `未找到记录: ${lookupValue} (清理后: ${cleanedValue})` };
+        return { ok: false, error: `未找到记录: ${lookupValue}` };
     }
 
     // 2. 适配记录格式并构建详情
     const record = adaptRecord(openApiRecord);
     const detail = buildRecordDetail(record);
 
-    // 3. 构建报价单飞书文档块
-    const docTitle = `保险报价确认单_${detail['保单编号'] || Date.now()}`;
-    const blocks = buildQuotationBlocks(detail);
+    // 3. 使用 pdfkit 生成本地精美 PDF（无需飞书文档权限）
+    console.log(`[生成] 正在生成 PDF...`);
+    const pdfBuffer = await generatePdf(detail);
+    console.log(`[生成] PDF 生成成功，大小 ${(pdfBuffer.length / 1024).toFixed(1)} KB`);
 
-    // 4. 创建飞书云文档
-    const documentId = await feishu.createDocx(docTitle);
+    // 4. 上传 PDF 到飞书云空间
+    const fileName = `报价单_${detail['保单编号'] || Date.now()}.pdf`;
+    console.log(`[生成] 正在上传 ${fileName} 到飞书...`);
+    const fileToken = await feishu.uploadMedia(BASE_TOKEN, fileName, pdfBuffer);
+    console.log(`[生成] 上传成功 file_token=${fileToken}`);
 
-    try {
-        // 5. 写入文档内容
-        await feishu.createDocBlocks(documentId, blocks);
+    // 5. 更新记录附件字段（覆盖式）
+    await feishu.updateRecordAttachment(BASE_TOKEN, TABLE_ID, actualRecordId, fileToken, '报价单附件');
+    console.log(`[生成] ✅ 完成！`);
 
-        // 6. 创建导出任务（docx → pdf）
-        const ticket = await feishu.createExportTask(documentId, 'docx', 'pdf');
-
-        // 7. 轮询导出结果（最多 90 秒）
-        const { file_token: pdfToken } = await feishu.pollExportTask(ticket, 90000);
-
-        // 8. 下载 PDF 二进制
-        const pdfBuffer = await feishu.downloadExportedFile(pdfToken);
-
-        // 9. 上传 PDF 到飞书云空间
-        const fileName = `报价单_${detail['保单编号'] || Date.now()}.pdf`;
-        const fileToken = await feishu.uploadMedia(BASE_TOKEN, fileName, pdfBuffer);
-
-        // 10. 更新记录附件字段（覆盖式）
-        await feishu.updateRecordAttachment(BASE_TOKEN, TABLE_ID, actualRecordId, fileToken, '报价单附件');
-
-        return { ok: true, detail, file_name: fileName };
-    } finally {
-        // 11. 清理临时飞书文档（无论成功失败都删除，避免云空间堆积）
-        await feishu.deleteDocx(documentId);
-    }
+    return { ok: true, detail, file_name: fileName };
 }
 
 // ============================================================
