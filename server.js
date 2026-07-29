@@ -445,23 +445,34 @@ function serveStatic(req, res) {
  * @returns {Promise<{ok:boolean, detail?:object, file_name?:string, error?:string}>}
  */
 async function generateAndUpload(recordId, policyNumber) {
-    // 1. 获取记录（支持 record_id 或保单编号两种方式）
+    // 1. 获取记录（自动判断是 record_id 还是保单编号）
     let openApiRecord = null;
     let actualRecordId = recordId;
 
-    if (policyNumber) {
-        // 用保单编号查询
-        openApiRecord = await feishu.getRecordByPolicyNumber(BASE_TOKEN, TABLE_ID, policyNumber);
-        if (openApiRecord) {
-            actualRecordId = openApiRecord.record_id;
+    // 优先使用 policy_number 参数
+    const lookupValue = policyNumber || recordId;
+
+    if (lookupValue) {
+        // 判断格式：record_id 通常以 "recv" 开头，保单编号以 "POL-" 开头
+        const isRecordId = lookupValue.startsWith('recv');
+
+        if (isRecordId) {
+            // 直接用 record_id 查询
+            openApiRecord = await feishu.getRecord(BASE_TOKEN, TABLE_ID, lookupValue);
+            if (openApiRecord) {
+                actualRecordId = openApiRecord.record_id;
+            }
+        } else {
+            // 用保单编号查询（所有非 recv 开头的值都当作保单编号处理）
+            openApiRecord = await feishu.getRecordByPolicyNumber(BASE_TOKEN, TABLE_ID, lookupValue);
+            if (openApiRecord) {
+                actualRecordId = openApiRecord.record_id;
+            }
         }
-    } else if (recordId) {
-        // 用 record_id 直接查询
-        openApiRecord = await feishu.getRecord(BASE_TOKEN, TABLE_ID, recordId);
     }
 
     if (!openApiRecord) {
-        return { ok: false, error: `未找到记录: ${policyNumber || recordId}` };
+        return { ok: false, error: `未找到记录: ${lookupValue}` };
     }
 
     // 2. 适配记录格式并构建详情
