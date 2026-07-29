@@ -171,18 +171,33 @@ async function getRecordByPolicyNumber(appToken, tableId, policyNumber) {
     for (const record of records) {
         const fields = record.fields || {};
         const rawValue = fields['保单编号'];
-        console.log(`[调试] record_id=${record.record_id}, 保单编号 raw=${JSON.stringify(rawValue)}, typeof=${typeof rawValue}`);
         
-        const normalizedValue = normalizeFieldValue(rawValue);
-        const value = String(normalizedValue || '');
-        console.log(`[调试] normalized="${normalizedValue}", value="${value}"`);
+        // 规范化字段值（和 adaptRecord 中的 normalizeFieldValue 处理逻辑一致）
+        let normalizedValue = rawValue;
+        if (Array.isArray(rawValue)) {
+            if (rawValue.length === 1) {
+                const item = rawValue[0];
+                if (typeof item === 'object' && item !== null && 'text' in item) {
+                    normalizedValue = item.text;
+                } else if (typeof item === 'object' && item !== null && 'value' in item) {
+                    normalizedValue = item.value;
+                } else {
+                    normalizedValue = item;
+                }
+            }
+        } else if (typeof rawValue === 'object' && rawValue !== null) {
+            normalizedValue = rawValue.value || rawValue.text || JSON.stringify(rawValue);
+        }
+        
+        const value = String(normalizedValue || '').trim();
+        console.log(`[调试] record_id=${record.record_id}, raw=${JSON.stringify(rawValue)}, normalized="${value}"`);
         
         if (value === policyNumber) {
-            console.log(`[调试] 找到匹配记录: ${record.record_id}`);
+            console.log(`[调试] ✅ 找到匹配记录: ${record.record_id}`);
             return record;
         }
     }
-    console.log(`[调试] 未找到匹配记录`);
+    console.log(`[调试] ❌ 未找到匹配记录`);
     return null;
 }
 
