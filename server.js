@@ -110,6 +110,12 @@ function formatMoney(n) {
     return '¥' + num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** 保额格式化：去掉￥符号，数值单位为万 */
+function formatBaoE(n) {
+    const num = toNumber(n);
+    return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '万';
+}
+
 /**
  * 规范化飞书OpenAPI字段值：
  * - 富文本数组 [{type:"text",text:"xxx"}] → 提取纯文本
@@ -240,13 +246,16 @@ function generateTextFromRecord(detail) {
     t += dash + '\n';
     t += '  保障项目             保额        保费\n';
     t += dash + '\n';
+    t += `  交强险                —     ${fm('交强保费')}\n`;
     t += `  车损险                —     ${fm('车损险保费')}\n`;
-    t += `  三者险        ${formatMoney(d['三者保额'])}     ${fm('三者保费')}\n`;
+    t += `  新能源车损保全   ${formatBaoE(d['非车价格m'])}     ${fm('新能源车损两年期')}\n`;
+    t += `  三者险        ${formatBaoE(d['三者保额'])}     ${fm('三者保费')}\n`;
     t += `  医保外责任险          —     ${fm('医保外保费')}\n`;
     t += `  外电网责任险          —     ${fm('外电网保费')}\n`;
-    t += `  司机座位险    ${formatMoney(d['司机座位险保额'])}     ${fm('司机座位险保费')}\n`;
-    t += `  乘客座位险    ${formatMoney(d['乘客座位险保额'])}     ${fm('乘客座位险保费')}\n`;
-    t += `  驾乘意外险    ${formatMoney(d['驾乘意外保额'])}     ${fm('驾乘意外保费')}\n`;
+    t += `  司机座位险   ${formatBaoE(d['司机座位险保额'])}     ${fm('司机座位险保费')}\n`;
+    t += `  乘客座位险   ${formatBaoE(d['乘客座位险保额'])}     ${fm('乘客座位险保费')}\n`;
+    t += `  驾乘意外险   ${formatBaoE(d['驾乘意外保额'])}     ${fm('驾乘意外保费')}\n`;
+    t += `  车船税                —     ${fm('车船税')}\n`;
     t += dash + '\n';
     t += `  商业险合计                    ${fm('商业险合计')}\n`;
     t += '\n';
@@ -484,13 +493,16 @@ function generatePdf(detail) {
 
         // 表格数据
         const items = [
+            ['交强险', '—', fm('交强保费')],
             ['车损险', '—', fm('车损险保费')],
-            ['三者险', formatMoney(d['三者保额']), fm('三者保费')],
+            ['新能源车损保全', formatBaoE(d['非车价格m']), fm('新能源车损两年期')],
+            ['三者险', formatBaoE(d['三者保额']), fm('三者保费')],
             ['医保外责任险', '—', fm('医保外保费')],
             ['外电网责任险', '—', fm('外电网保费')],
-            ['司机座位险', formatMoney(d['司机座位险保额']), fm('司机座位险保费')],
-            ['乘客座位险', formatMoney(d['乘客座位险保额']), fm('乘客座位险保费')],
-            ['驾乘意外险', formatMoney(d['驾乘意外保额']), fm('驾乘意外保费')],
+            ['司机座位险', formatBaoE(d['司机座位险保额']), fm('司机座位险保费')],
+            ['乘客座位险', formatBaoE(d['乘客座位险保额']), fm('乘客座位险保费')],
+            ['驾乘意外险', formatBaoE(d['驾乘意外保额']), fm('驾乘意外保费')],
+            ['车船税', '—', fm('车船税')],
         ];
         for (const item of items) {
             y = drawTableRow(item, y, false);
