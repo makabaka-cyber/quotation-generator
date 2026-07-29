@@ -43,12 +43,20 @@ const candidateFonts = [
     'C:/Windows/Fonts/msyh.ttf',
     'C:/Windows/Fonts/simhei.ttf',
     'C:/Windows/Fonts/simsun.ttf',
-    // Linux .ttf
+    // Linux - Noto CJK (nixpacks font-noto-cjk)
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttf',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.otf',
+    '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttf',
+    '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.otf',
+    '/usr/share/fonts/noto-cjk/NotoSansSC-Regular.otf',
+    '/usr/share/fonts/noto/NotoSansCJK-Regular.ttf',
+    '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttf',
+    // Linux - 文泉驿
     '/usr/share/fonts/truetype/wqy/wqy-microhei.ttf',
     '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttf',
-    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttf',
-    '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttf',
-    '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttf',
+    // Linux - 系统字体
+    '/usr/share/fonts/truetype/arphic/uming.ttc',
+    '/usr/share/fonts/truetype/arphic/ukai.ttc',
 ];
 
 // 检查字体文件
