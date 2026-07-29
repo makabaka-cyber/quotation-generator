@@ -166,15 +166,23 @@ function normalizeFieldValue(value) {
  */
 async function getRecordByPolicyNumber(appToken, tableId, policyNumber) {
     const records = await searchRecords(appToken, tableId);
+    console.log(`[调试] getRecordByPolicyNumber: 收到参数="${policyNumber}"，共 ${records.length} 条记录`);
+    
     for (const record of records) {
         const fields = record.fields || {};
         const rawValue = fields['保单编号'];
+        console.log(`[调试] record_id=${record.record_id}, 保单编号 raw=${JSON.stringify(rawValue)}, typeof=${typeof rawValue}`);
+        
         const normalizedValue = normalizeFieldValue(rawValue);
         const value = String(normalizedValue || '');
+        console.log(`[调试] normalized="${normalizedValue}", value="${value}"`);
+        
         if (value === policyNumber) {
+            console.log(`[调试] 找到匹配记录: ${record.record_id}`);
             return record;
         }
     }
+    console.log(`[调试] 未找到匹配记录`);
     return null;
 }
 
