@@ -328,8 +328,19 @@ function generatePdf(detail) {
         function useFont() {
             if (hasChineseFont) {
                 doc.font('Chinese');
+                // pdfkit 对 CJK 字体的行高计算有 bug，需手动设置
+                doc._font.lineGap = doc._font.lineGap || 0;
             } else {
                 doc.font('Helvetica');
+            }
+        }
+
+        // 设置中文字体行高的辅助函数
+        function setFontSize(size) {
+            doc.fontSize(size);
+            if (hasChineseFont) {
+                // CJK 字体行高 = 字号 * 1.4（经验值）
+                doc._font.lineGap = size * 0.4;
             }
         }
 
@@ -356,7 +367,8 @@ function generatePdf(detail) {
             doc.save();
             doc.rect(doc.page.margins.left, y - 4, contentWidth, 32).fill(COLORS.headerBg);
             useFont();
-            doc.fillColor(COLORS.white).fontSize(14).text(text, doc.page.margins.left + 12, y + 2);
+            doc.fillColor(COLORS.white); setFontSize(14);
+            doc.text(text, doc.page.margins.left + 12, y + 2);
             doc.restore();
             return y + 34;
         }
@@ -368,9 +380,10 @@ function generatePdf(detail) {
                 doc.rect(doc.page.margins.left, y - 2, contentWidth, rowH).fill(COLORS.lightBg);
             }
             useFont();
-            doc.fillColor(COLORS.darkText).fontSize(11).text(label, doc.page.margins.left + 10, y + 2);
-            doc.fillColor(isHighlight ? COLORS.accent : COLORS.darkText).fontSize(11);
-            if (hasChineseFont) doc.font('Chinese'); else doc.font('Helvetica-Bold');
+            doc.fillColor(COLORS.darkText); setFontSize(11);
+            doc.text(label, doc.page.margins.left + 10, y + 2);
+            doc.fillColor(isHighlight ? COLORS.accent : COLORS.darkText);
+            if (hasChineseFont) { doc.font('Chinese'); setFontSize(11); } else { doc.font('Helvetica-Bold'); doc.fontSize(11); }
             doc.text(String(value), doc.page.margins.left + contentWidth - 100, y + 2, { width: 90, align: 'right' });
             doc.restore();
             return y + rowH + 2;
@@ -388,12 +401,12 @@ function generatePdf(detail) {
                 if (isHeader) {
                     doc.rect(x, y - 2, w, rowH).fill(COLORS.headerBg);
                     useFont();
-                    doc.fillColor(COLORS.white).fontSize(11);
+                    doc.fillColor(COLORS.white); setFontSize(11);
                 } else {
                     const bgColor = i % 2 === 0 ? COLORS.white : COLORS.lightBg;
                     doc.rect(x, y - 2, w, rowH).fill(bgColor);
                     useFont();
-                    doc.fillColor(COLORS.darkText).fontSize(10.5);
+                    doc.fillColor(COLORS.darkText); setFontSize(10.5);
                 }
                 // 边框
                 doc.strokeColor(COLORS.border).lineWidth(0.5);
@@ -409,7 +422,7 @@ function generatePdf(detail) {
         function drawSectionTitle(text, y) {
             doc.save();
             useFont();
-            doc.fillColor(COLORS.primary).fontSize(13);
+            doc.fillColor(COLORS.primary); setFontSize(13);
             doc.text(text, doc.page.margins.left, y);
             doc.strokeColor(COLORS.primary).lineWidth(1.5);
             doc.moveTo(doc.page.margins.left, y + 22).lineTo(doc.page.margins.left + 60, y + 22).stroke();
@@ -437,7 +450,7 @@ function generatePdf(detail) {
         // 主标题
         doc.save();
         useFont();
-        doc.fillColor(COLORS.primary).fontSize(22);
+        doc.fillColor(COLORS.primary); setFontSize(22);
         doc.text('保 险 报 价 确 认 单', { align: 'center', width: contentWidth });
         doc.restore();
         y += 30;
@@ -526,7 +539,7 @@ function generatePdf(detail) {
         y += 10;
         doc.save();
         useFont();
-        doc.fillColor(COLORS.grayText).fontSize(9);
+        doc.fillColor(COLORS.grayText); setFontSize(9);
         doc.text('本报价单仅供参考，最终以正式保单为准', doc.page.margins.left, y, { align: 'left' });
         y += 16;
         doc.text(`生成时间：${new Date().toLocaleString('zh-CN')}`, doc.page.margins.left, y);
