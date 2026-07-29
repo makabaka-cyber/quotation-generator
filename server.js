@@ -214,17 +214,17 @@ function buildRecordDetail(record) {
         '非车价格m': toNumber(record['非车价格m']),
         '非车价格u': toNumber(record['非车价格u']),
         '非车价格u+': toNumber(record['非车价格u+']),
-        // 各产品投保状态：不显示 / 只显示保额 / 正常显示
-        '交强险状态': record['交强险状态'] || '正常显示',
-        '车损状态': record['车损状态'] || '正常显示',
-        '新能源车损保全状态': record['新能源车损保全状态'] || '正常显示',
-        '三者状态': record['三者状态'] || '正常显示',
-        '医保外状态': record['医保外状态'] || '正常显示',
-        '外电网状态': record['外电网状态'] || '正常显示',
-        '司机座位险状态': record['司机座位险状态'] || '正常显示',
-        '乘客座位险状态': record['乘客座位险状态'] || '正常显示',
-        '驾乘意外状态': record['驾乘意外状态'] || '正常显示',
-        '车船税状态': record['车船税状态'] || '正常显示',
+        // 各产品投保状态：未投保 / 有险种无分项价 / 正常保费
+        '交强险状态': record['交强险状态'] || '正常保费',
+        '车损状态': record['车损状态'] || '正常保费',
+        '新能源车损保全状态': record['新能源车损保全状态'] || '正常保费',
+        '三者状态': record['三者状态'] || '正常保费',
+        '医保外状态': record['医保外状态'] || '正常保费',
+        '外电网状态': record['外电网状态'] || '正常保费',
+        '司机座位险状态': record['司机座位险状态'] || '正常保费',
+        '乘客座位险状态': record['乘客座位险状态'] || '正常保费',
+        '驾乘意外状态': record['驾乘意外状态'] || '正常保费',
+        '车船税状态': record['车船税状态'] || '正常保费',
     };
 }
 
@@ -272,9 +272,9 @@ function generateTextFromRecord(detail) {
         { name: '车船税', baoE: '—', premium: fm('车船税'), statusKey: '车船税状态' },
     ];
     for (const def of textDefs) {
-        const status = d[def.statusKey] || '正常显示';
-        if (status === '不显示') continue;
-        const premium = status === '只显示保额' ? '—' : def.premium;
+        const status = d[def.statusKey] || '正常保费';
+        if (status === '未投保') continue;
+        const premium = status === '有险种无分项价' ? '—' : def.premium;
         t += `  ${def.name}  ${def.baoE}  ${premium}\n`;
     }
     t += dash + '\n';
@@ -397,9 +397,9 @@ function generatePdf(detail) {
         /**
          * 根据投保状态构建产品列表
          * 状态规则：
-         * - "不显示"：跳过该行
-         * - "只显示保额"：显示产品名和保额，保费为 "-"
-         * - "正常显示"：显示完整信息
+         * - "未投保"：跳过该行，完全不显示
+         * - "有险种无分项价"：显示产品名和保额，保费为 "-"
+         * - "正常保费"：显示完整信息（产品名+保额+保费）
          */
         function buildItemsByStatus(detail) {
             const d = detail;
@@ -417,9 +417,9 @@ function generatePdf(detail) {
             ];
             const items = [];
             for (const def of defs) {
-                const status = d[def.statusKey] || '正常显示';
-                if (status === '不显示') continue;
-                if (status === '只显示保额') {
+                const status = d[def.statusKey] || '正常保费';
+                if (status === '未投保') continue;
+                if (status === '有险种无分项价') {
                     items.push([def.name, def.baoE, '—']);
                 } else {
                     items.push([def.name, def.baoE, def.premium]);
