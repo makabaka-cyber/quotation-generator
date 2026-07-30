@@ -411,7 +411,7 @@ function generatePdf(detail) {
         return new Promise((resolve, reject) => {
             const doc = new PDFDocument({
                 size: 'A4',
-                margins: { top: 50, bottom: 50, left: 45, right: 45 },
+                margins: { top: 25, bottom: 25, left: 30, right: 30 },
                 info: {
                     Title: '保险报价确认单',
                     Author: '报价单生成系统',
@@ -455,8 +455,7 @@ function generatePdf(detail) {
         function setFontSize(size) {
             doc.fontSize(size);
             if (hasChineseFont) {
-                // CJK 字体行高 = 字号 * 1.4（经验值）
-                doc._font.lineGap = size * 0.4;
+                doc._font.lineGap = size * 0.3;
             }
         }
 
@@ -516,54 +515,51 @@ function generatePdf(detail) {
 
         function drawHeader(text, y) {
             doc.save();
-            doc.rect(doc.page.margins.left, y - 4, contentWidth, 32).fill(COLORS.headerBg);
+            doc.rect(doc.page.margins.left, y - 2, contentWidth, 24).fill(COLORS.headerBg);
             useFont();
-            doc.fillColor(COLORS.white); setFontSize(14);
-            doc.text(text, doc.page.margins.left + 12, y + 2);
+            doc.fillColor(COLORS.white); setFontSize(12);
+            doc.text(text, doc.page.margins.left + 10, y + 2);
             doc.restore();
-            return y + 34;
+            return y + 22;
         }
 
         function drawRow(label, value, y, isHighlight) {
-            const rowH = 24;
+            const rowH = 20;
             doc.save();
             if (isHighlight) {
-                doc.rect(doc.page.margins.left, y - 2, contentWidth, rowH).fill(COLORS.lightBg);
+                doc.rect(doc.page.margins.left, y - 1, contentWidth, rowH).fill(COLORS.lightBg);
             }
             useFont();
-            doc.fillColor(COLORS.darkText); setFontSize(11);
-            doc.text(label, doc.page.margins.left + 10, y + 2);
+            doc.fillColor(COLORS.darkText); setFontSize(10);
+            doc.text(label, doc.page.margins.left + 8, y + 2);
             doc.fillColor(isHighlight ? COLORS.accent : COLORS.darkText);
-            if (hasChineseFont) { doc.font('Chinese'); setFontSize(11); } else { doc.font('Helvetica-Bold'); doc.fontSize(11); }
-            doc.text(String(value), doc.page.margins.left + contentWidth - 100, y + 2, { width: 90, align: 'right' });
+            if (hasChineseFont) { doc.font('Chinese'); setFontSize(10); } else { doc.font('Helvetica-Bold'); doc.fontSize(10); }
+            doc.text(String(value), doc.page.margins.left + contentWidth - 90, y + 2, { width: 80, align: 'right' });
             doc.restore();
-            return y + rowH + 2;
+            return y + rowH + 1;
         }
 
         function drawTableRow(cells, y, isHeader) {
-            const rowH = 26;
+            const rowH = 22;
             const colWidths = [contentWidth * 0.4, contentWidth * 0.3, contentWidth * 0.3];
 
             doc.save();
             let x = doc.page.margins.left;
             for (let i = 0; i < cells.length; i++) {
                 const w = colWidths[i];
-                // 背景
                 if (isHeader) {
-                    doc.rect(x, y - 2, w, rowH).fill(COLORS.headerBg);
+                    doc.rect(x, y - 1, w, rowH).fill(COLORS.headerBg);
                     useFont();
-                    doc.fillColor(COLORS.white); setFontSize(11);
+                    doc.fillColor(COLORS.white); setFontSize(10);
                 } else {
                     const bgColor = i % 2 === 0 ? COLORS.white : COLORS.lightBg;
-                    doc.rect(x, y - 2, w, rowH).fill(bgColor);
+                    doc.rect(x, y - 1, w, rowH).fill(bgColor);
                     useFont();
-                    doc.fillColor(COLORS.darkText); setFontSize(10.5);
+                    doc.fillColor(COLORS.darkText); setFontSize(9.5);
                 }
-                // 边框
-                doc.strokeColor(COLORS.border).lineWidth(0.5);
-                doc.rect(x, y - 2, w, rowH).stroke();
-                // 文字
-                doc.text(String(cells[i]), x + 8, y + 2, { width: w - 16, align: i === 2 ? 'right' : 'left' });
+                doc.strokeColor(COLORS.border).lineWidth(0.4);
+                doc.rect(x, y - 1, w, rowH).stroke();
+                doc.text(String(cells[i]), x + 6, y + 2, { width: w - 12, align: i === 2 ? 'right' : 'left' });
                 x += w;
             }
             doc.restore();
@@ -573,20 +569,20 @@ function generatePdf(detail) {
         function drawSectionTitle(text, y) {
             doc.save();
             useFont();
-            doc.fillColor(COLORS.primary); setFontSize(13);
+            doc.fillColor(COLORS.primary); setFontSize(11);
             doc.text(text, doc.page.margins.left, y);
-            doc.strokeColor(COLORS.primary).lineWidth(1.5);
-            doc.moveTo(doc.page.margins.left, y + 22).lineTo(doc.page.margins.left + 60, y + 22).stroke();
+            doc.strokeColor(COLORS.primary).lineWidth(1.2);
+            doc.moveTo(doc.page.margins.left, y + 18).lineTo(doc.page.margins.left + 50, y + 18).stroke();
             doc.restore();
-            return y + 30;
+            return y + 24;
         }
 
         function drawSeparator(y) {
             doc.save();
-            doc.strokeColor(COLORS.border).lineWidth(0.5);
+            doc.strokeColor(COLORS.border).lineWidth(0.4);
             doc.moveTo(doc.page.margins.left, y).lineTo(doc.page.margins.left + contentWidth, y).stroke();
             doc.restore();
-            return y + 8;
+            return y + 5;
         }
 
         // === 开始绘制 ===
@@ -594,71 +590,71 @@ function generatePdf(detail) {
 
         // 顶部装饰线
         doc.save();
-        doc.rect(doc.page.margins.left, y, contentWidth, 4).fill(COLORS.primary);
+        doc.rect(doc.page.margins.left, y, contentWidth, 3).fill(COLORS.primary);
         doc.restore();
-        y += 14;
+        y += 10;
 
         // 绘制 logo（左上角保险公司 logo，右上角问界 logo）
         const logoY = y;
         try {
             if (insuranceLogoBuf) {
-                doc.image(insuranceLogoBuf, doc.page.margins.left, logoY, { width: 90, fit: [90, 36] });
+                doc.image(insuranceLogoBuf, doc.page.margins.left, logoY, { width: 70, fit: [70, 28] });
             } else {
-                doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(12);
-                doc.text(get('保险公司'), doc.page.margins.left, logoY + 6, { width: 100 });
+                doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(11);
+                doc.text(get('保险公司'), doc.page.margins.left, logoY + 4, { width: 80 });
                 doc.restore();
             }
         } catch (e) {
-            doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(12);
-            doc.text(get('保险公司'), doc.page.margins.left, logoY + 6, { width: 100 });
+            doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(11);
+            doc.text(get('保险公司'), doc.page.margins.left, logoY + 4, { width: 80 });
             doc.restore();
         }
         try {
             if (carBrandLogoBuf) {
-                doc.image(carBrandLogoBuf, doc.page.margins.left + contentWidth - 90, logoY, { width: 90, fit: [90, 36], align: 'right' });
+                doc.image(carBrandLogoBuf, doc.page.margins.left + contentWidth - 70, logoY, { width: 70, fit: [70, 28], align: 'right' });
             } else {
-                doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(14);
-                doc.text('问界', doc.page.margins.left + contentWidth - 80, logoY + 4, { align: 'right', width: 80 });
+                doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(12);
+                doc.text('问界', doc.page.margins.left + contentWidth - 60, logoY + 3, { align: 'right', width: 60 });
                 doc.restore();
             }
         } catch (e) {
-            doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(14);
-            doc.text('问界', doc.page.margins.left + contentWidth - 80, logoY + 4, { align: 'right', width: 80 });
+            doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(12);
+            doc.text('问界', doc.page.margins.left + contentWidth - 60, logoY + 3, { align: 'right', width: 60 });
             doc.restore();
         }
-        y += 44;
+        y += 32;
 
         // 主标题
         doc.save();
         useFont();
-        doc.fillColor(COLORS.primary); setFontSize(22);
+        doc.fillColor(COLORS.primary); setFontSize(18);
         doc.text('保 险 报 价 确 认 单', { align: 'center', width: contentWidth });
         doc.restore();
-        y += 30;
+        y += 22;
 
         // 副标题装饰
         doc.save();
-        doc.strokeColor(COLORS.accent).lineWidth(1);
+        doc.strokeColor(COLORS.accent).lineWidth(0.8);
         doc.moveTo(doc.page.margins.left + contentWidth * 0.25, y).lineTo(doc.page.margins.left + contentWidth * 0.45, y).stroke();
         doc.moveTo(doc.page.margins.left + contentWidth * 0.55, y).lineTo(doc.page.margins.left + contentWidth * 0.75, y).stroke();
         doc.restore();
-        y += 12;
+        y += 8;
 
         // 基本信息
-        y = drawHeader('基 本 信 息', y + 10);
+        y = drawHeader('基 本 信 息', y + 6);
         y = drawRow('承保公司', get('保险公司'), y, false);
         y = drawRow('保单编号', get('保单编号'), y, false);
         y = drawSeparator(y);
 
         // 客户信息
-        y = drawHeader('客 户 信 息', y + 8);
+        y = drawHeader('客 户 信 息', y + 5);
         y = drawRow('客户', get('客户信息'), y, false);
         y = drawRow('车型', get('车型'), y, false);
         y = drawSeparator(y);
 
         // 保障项目表格
-        y = drawHeader('保 障 项 目 明 细', y + 8);
-        y += 8;
+        y = drawHeader('保 障 项 目 明 细', y + 5);
+        y += 5;
 
         // 表头
         y = drawTableRow(['保障项目', '保额', '保费'], y, true);
@@ -670,13 +666,13 @@ function generatePdf(detail) {
         }
 
         // 商业险合计
-        y += 6;
+        y += 3;
         y = drawRow('商业险合计', fm('商业险合计'), y, true);
         y = drawSeparator(y);
 
         // 新能源车损保全
-        y = drawHeader('新能源车损保全（三方案同报）', y + 8);
-        y += 8;
+        y = drawHeader('新能源车损保全（三方案同报）', y + 5);
+        y += 5;
 
         // 方案表头
         y = drawTableRow(['方案', '保障期限', '合计金额'], y, true);
@@ -688,8 +684,8 @@ function generatePdf(detail) {
         y = drawSeparator(y);
 
         // 费用汇总
-        y = drawHeader('费 用 汇 总', y + 8);
-        y += 8;
+        y = drawHeader('费 用 汇 总', y + 5);
+        y += 5;
 
         y = drawRow('交强保费', fm('交强保费'), y, false);
         y = drawRow('车船税', fm('车船税'), y, false);
@@ -699,7 +695,7 @@ function generatePdf(detail) {
 
         // 方案合计总览
         y = drawSectionTitle('三方案总价对比', y);
-        y += 6;
+        y += 3;
 
         // 方案对比表头
         y = drawTableRow(['方案', '保障期限', '总价'], y, true);
@@ -709,12 +705,12 @@ function generatePdf(detail) {
         y = drawSeparator(y);
 
         // 底部说明
-        y += 10;
+        y += 4;
         doc.save();
         useFont();
-        doc.fillColor(COLORS.grayText); setFontSize(9);
+        doc.fillColor(COLORS.grayText); setFontSize(7.5);
         doc.text('本报价单仅供参考，最终以正式保单为准', doc.page.margins.left, y, { align: 'left' });
-        y += 16;
+        y += 12;
         doc.text(`生成时间：${new Date().toLocaleString('zh-CN')}`, doc.page.margins.left, y);
         doc.restore();
 
