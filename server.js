@@ -25,6 +25,10 @@ const BASE_TOKEN = process.env.BASE_TOKEN;
 const TABLE_ID = process.env.TABLE_ID;
 const ICON_TABLE_ID = process.env.ICON_TABLE_ID || ''; // 图标表ID（可选）
 
+// Logo 直接 URL（优先使用，绕过图标表查询）
+const INSURANCE_LOGO_URL = process.env.INSURANCE_LOGO_URL || '';
+const CAR_BRAND_LOGO_URL = process.env.CAR_BRAND_LOGO_URL || '';
+
 const PORT = process.env.PORT || 8000;
 
 // 注册中文字体（系统字体路径 + 项目内置字体）
@@ -444,17 +448,37 @@ function generatePdf(detail) {
         const get = (k) => (d[k] !== undefined && d[k] !== null && d[k] !== '') ? d[k] : '—';
         const fm = (k) => formatMoney(d[k]);
 
-        // 预加载 logo 图片（直接加载 + 图标表兜底）
-        let insuranceLogoBuf = await loadLogoImage(d['保险公司logo']);
+        // 预加载 logo 图片（优先级：环境变量URL > 字段值 > 图标表兜底）
+        let insuranceLogoBuf = null;
+        let carBrandLogoBuf = null;
+
+        // 1. 优先从环境变量URL加载
+        if (INSURANCE_LOGO_URL) {
+            console.log('[PDF] 从环境变量URL加载保险公司logo...');
+            insuranceLogoBuf = await loadLogoImage(INSURANCE_LOGO_URL);
+        }
         if (!insuranceLogoBuf) {
-            console.log('[PDF] 直接加载保险公司logo失败，尝试从图标表获取...');
+            insuranceLogoBuf = await loadLogoImage(d['保险公司logo']);
+        }
+        if (!insuranceLogoBuf) {
+            console.log('[PDF] 尝试从图标表获取保险公司logo...');
             insuranceLogoBuf = await fetchLogoFromIconTable(d['保险公司']);
         }
-        let carBrandLogoBuf = await loadLogoImage(d['问界logo']);
+
+        // 2. 优先从环境变量URL加载
+        if (CAR_BRAND_LOGO_URL) {
+            console.log('[PDF] 从环境变量URL加载品牌logo...');
+            carBrandLogoBuf = await loadLogoImage(CAR_BRAND_LOGO_URL);
+        }
         if (!carBrandLogoBuf) {
-            console.log('[PDF] 直接加载品牌logo失败，尝试从图标表获取...');
+            carBrandLogoBuf = await loadLogoImage(d['问界logo']);
+        }
+        if (!carBrandLogoBuf) {
+            console.log('[PDF] 尝试从图标表获取品牌logo...');
             carBrandLogoBuf = await fetchLogoFromIconTable('问界');
         }
+
+        console.log(`[PDF] logo加载结果: insurance=${insuranceLogoBuf ? 'OK(' + insuranceLogoBuf.length + 'bytes)' : 'FAIL'}, carBrand=${carBrandLogoBuf ? 'OK(' + carBrandLogoBuf.length + 'bytes)' : 'FAIL'}`);
 
         return new Promise((resolve, reject) => {
             const doc = new PDFDocument({
