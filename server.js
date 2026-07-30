@@ -18,9 +18,14 @@ const path = require('path');
 const PDFDocument = require('pdfkit');
 const feishu = require('./feishu-api');
 
+// 环境变量
+const APP_ID = process.env.FEISHU_APP_ID;
+const APP_SECRET = process.env.FEISHU_APP_SECRET;
+const BASE_TOKEN = process.env.BASE_TOKEN;
+const TABLE_ID = process.env.TABLE_ID;
+const ICON_TABLE_ID = process.env.ICON_TABLE_ID || ''; // 图标表ID（可选）
+
 const PORT = process.env.PORT || 8000;
-const BASE_TOKEN = process.env.BASE_TOKEN || 'Dt4kbDdd1a6OtkstVLXcLJjlneG';
-const TABLE_ID = process.env.TABLE_ID || 'tbluIyiU5i19TeqH';
 
 // 注册中文字体（系统字体路径 + 项目内置字体）
 // pdfkit 只支持 .ttf 和 .otf 格式，不支持 .ttc
@@ -366,6 +371,37 @@ async function loadLogoImage(value) {
     return null;
 }
 
+/**
+ * 从图标表（ICON_TABLE_ID）根据公司名称获取 logo
+ * 这是兜底方案：当报价单表中的 logo 字段无法直接加载时，
+ * 通过公司名在图标表中查找对应的 logo
+ * @param {string} companyName 保险公司名称
+ * @returns {Promise<Buffer|null>}
+ */
+async function fetchLogoFromIconTable(companyName) {
+    if (!ICON_TABLE_ID || !companyName) return null;
+    try {
+        const { searchRecords, getTenantToken } = require('./feishu-api');
+        const records = await searchRecords(BASE_TOKEN, ICON_TABLE_ID);
+        
+        for (const record of records) {
+            const fields = record.fields || {};
+            const name = fields['公司名称'] || fields['名称'] || '';
+            if (name && name.includes(companyName.substring(0, 4))) {
+                const logoField = fields['公司Logo'] || fields['logo'] || fields['Logo'] || '';
+                if (logoField) {
+                    console.log(`[PDF] 从图标表找到 ${companyName} 的logo`);
+                    return await loadLogoImage(logoField);
+                }
+            }
+        }
+        console.warn(`[PDF] 图标表中未找到 ${companyName} 的logo`);
+    } catch (e) {
+        console.warn(`[PDF] 从图标表加载logo失败: ${e.message}`);
+    }
+    return null;
+}
+
 // ============================================================
 // PDF 生成
 // ============================================================
@@ -382,9 +418,17 @@ function generatePdf(detail) {
         const get = (k) => (d[k] !== undefined && d[k] !== null && d[k] !== '') ? d[k] : '—';
         const fm = (k) => formatMoney(d[k]);
 
-        // 预加载 logo 图片
-        const insuranceLogoBuf = await loadLogoImage(d['保险公司logo']);
-        const carBrandLogoBuf = await loadLogoImage(d['问界logo']);
+        // 预加载 logo 图片（直接加载 + 图标表兜底）
+        let insuranceLogoBuf = await loadLogoImage(d['保险公司logo']);
+        if (!insuranceLogoBuf) {
+            console.log('[PDF] 直接加载保险公司logo失败，尝试从图标表获取...');
+            insuranceLogoBuf = await fetchLogoFromIconTable(d['保险公司']);
+        }
+        let carBrandLogoBuf = await loadLogoImage(d['问界logo']);
+        if (!carBrandLogoBuf) {
+            console.log('[PDF] 直接加载品牌logo失败，尝试从图标表获取...');
+            carBrandLogoBuf = await fetchLogoFromIconTable('问界');
+        }
 
         return new Promise((resolve, reject) => {
             const doc = new PDFDocument({
