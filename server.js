@@ -314,6 +314,29 @@ function generateTextFromRecord(detail) {
     return t;
 }
 
+// ============================================================
+// Logo 加载工具
+// ============================================================
+
+/** 从 URL 加载 logo 图片，返回 Buffer；失败返回 null */
+async function loadLogoImage(url) {
+    if (!url) return null;
+    try {
+        const resp = await fetch(url);
+        if (resp.ok) {
+            const buf = Buffer.from(await resp.arrayBuffer());
+            if (buf.length > 0) return buf;
+        }
+    } catch (e) {
+        console.warn(`[PDF] 加载 logo 失败: ${e.message}`);
+    }
+    return null;
+}
+
+// ============================================================
+// PDF 生成
+// ============================================================
+
 /**
  * 使用 pdfkit 生成精美 PDF 报价单
  * 严格遵循约束：不含"安心包"/"非车"字样，统一为"新能源车损保全"
@@ -401,43 +424,6 @@ function generatePdf(detail) {
         };
 
         // === 辅助函数 ===
-
-        /** 从 URL 加载 logo 图片，返回 Buffer；失败返回 null */
-        async function loadLogoImage(url) {
-            if (!url) return null;
-            try {
-                const resp = await fetch(url);
-                if (resp.ok) {
-                    const buf = Buffer.from(await resp.arrayBuffer());
-                    if (buf.length > 0) return buf;
-                }
-            } catch (e) {
-                console.warn(`[PDF] 加载 logo 失败: ${e.message}`);
-            }
-            return null;
-        }
-
-        /** 绘制 logo 或文字兜底 */
-        function drawLogo(url, fallbackText, x, y, maxWidth) {
-            return loadLogoImage(url).then(buf => {
-                if (buf) {
-                    try {
-                        doc.image(buf, x, y, { width: maxWidth, fit: [maxWidth, 40], align: 'left' });
-                        return true;
-                    } catch (e) {
-                        // 图片格式不支持，降级为文字
-                    }
-                }
-                // 文字兜底
-                doc.save();
-                useFont();
-                doc.fillColor(COLORS.primary);
-                doc.fontSize(16);
-                doc.text(fallbackText, x, y + 8);
-                doc.restore();
-                return false;
-            });
-        }
 
         /**
          * 根据投保状态构建产品列表
