@@ -318,14 +318,69 @@ function generateTextFromRecord(detail) {
 // Logo 加载工具
 // ============================================================
 
-/** 从 URL 加载 logo 图片，返回 Buffer；失败返回 null */
-async function loadLogoImage(url) {
-    if (!url) return null;
+/**
+ * 从飞书多维表格图标/附件字段加载 logo 图片
+ * 支持以下格式：
+ * 1. URL 字符串: "https://..." → 直接 fetch
+ * 2. 附件对象: {file_token: "xxx"} 或 [{file_token: "xxx"}] → 通过飞书 API 下载
+ * 3. 图标字段值: 可能是 URL 或 token
+ * @returns {Promise<Buffer|null>}
+ */
+async function loadLogoImage(value) {
+    if (!value) return null;
     try {
-        const resp = await fetch(url);
-        if (resp.ok) {
-            const buf = Buffer.from(await resp.arrayBuffer());
-            if (buf.length > 0) return buf;
+        let url = null;
+        let fileToken = null;
+
+        if (typeof value === 'string') {
+            // 纯字符串：可能是 URL 或 token
+            if (value.startsWith('http')) {
+                url = value;
+            } else if (value.startsWith('boxcn') || value.length > 20) {
+                // 可能是飞书 file_token
+                fileToken = value;
+            } else {
+                return null;
+            }
+        } else if (typeof value === 'object' && value !== null) {
+            // 对象格式
+            if (value.file_token) {
+                fileToken = value.file_token;
+            } else if (typeof value.url === 'string') {
+                url = value.url;
+            } else if (value.link) {
+                url = value.link;
+            }
+        } else if (Array.isArray(value) && value.length > 0) {
+            // 数组格式（飞书附件字段）
+            const first = value[0];
+            if (first && first.file_token) {
+                fileToken = first.file_token;
+            } else if (first && typeof first === 'string') {
+                return loadLogoImage(first);
+            }
+        }
+
+        // 通过 URL 加载
+        if (url) {
+            const resp = await fetch(url);
+            if (resp.ok) {
+                const buf = Buffer.from(await resp.arrayBuffer());
+                if (buf.length > 0) return buf;
+            }
+        }
+
+        // 通过飞书 file_token 下载
+        if (fileToken) {
+            const { getTenantToken } = require('./feishu-api');
+            const token = await getTenantToken();
+            const resp = await fetch(`https://open.feishu.cn/open-apis/drive/v1/medias/${fileToken}/download`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (resp.ok) {
+                const buf = Buffer.from(await resp.arrayBuffer());
+                if (buf.length > 0) return buf;
+            }
         }
     } catch (e) {
         console.warn(`[PDF] 加载 logo 失败: ${e.message}`);
