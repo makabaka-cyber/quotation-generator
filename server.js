@@ -29,6 +29,50 @@ const ICON_TABLE_ID = process.env.ICON_TABLE_ID || ''; // 图标表ID（可选�
 const INSURANCE_LOGO_URL = process.env.INSURANCE_LOGO_URL || '';
 const CAR_BRAND_LOGO_URL = process.env.CAR_BRAND_LOGO_URL || '';
 
+// ============================================================
+// 保险公司 Logo 映射表（关键词 → 本地文件名）
+// ============================================================
+const LOGO_MAP = [
+    { keywords: ['平安'], file: 'pingan.png', name: '中国平安' },
+    { keywords: ['人寿'], file: 'chinalife.png', name: '中国人寿' },
+    { keywords: ['太平洋'], file: 'cpic.png', name: '中国太平洋' },
+    { keywords: ['人保', '人民财产'], file: 'picc.png', name: '中国人保' },
+    { keywords: ['太平'], file: 'taiping.png', name: '太平保险' },
+    { keywords: ['中华联合', '中华保'], file: 'chinaunion.png', name: '中华联合' },
+    { keywords: ['问界'], file: 'aito.png', name: '问界' },
+];
+
+/**
+ * 根据公司名称从本地 logos/目录加载 logo
+ * @param {string} companyName 公司名称
+ * @returns {Buffer|null}
+ */
+function loadLogoByCompanyName(companyName) {
+    if (!companyName) return null;
+    try {
+        const logosDir = path.join(__dirname, 'logos');
+        for (const mapping of LOGO_MAP) {
+            for (const keyword of mapping.keywords) {
+                if (companyName.includes(keyword)) {
+                    const logoPath = path.join(logosDir, mapping.file);
+                    if (fs.existsSync(logoPath)) {
+                        const buf = fs.readFileSync(logoPath);
+                        console.log(`[PDF] 本地logo: ${companyName} → ${mapping.file} (${buf.length} bytes)`);
+                        return buf;
+                    } else {
+                        console.warn(`[PDF] 本地logo文件不存在: ${logoPath}`);
+                        return null;
+                    }
+                }
+            }
+        }
+        console.warn(`[PDF] 未匹配到 ${companyName} 的logo关键词`);
+    } catch (e) {
+        console.warn(`[PDF] 加载本地logo失败: ${e.message}`);
+    }
+    return null;
+}
+
 const PORT = process.env.PORT || 8000;
 
 // 注册中文字体（系统字体路径 + 项目内置字体）
@@ -448,12 +492,9 @@ function generatePdf(detail) {
         const get = (k) => (d[k] !== undefined && d[k] !== null && d[k] !== '') ? d[k] : '—';
         const fm = (k) => formatMoney(d[k]);
 
-        // 预加载 logo 图片（优先级：环境变量URL > 字段值 > 图标表兜底）
-        let insuranceLogoBuf = null;
-        let carBrandLogoBuf = null;
-
-        // 1. 优先从环境变量URL加载
-        if (INSURANCE_LOGO_URL) {
+        // 预加载 logo 图片（优先级：本地logos目录 > 环境变量URL > 字段值 > 图标表）
+        let insuranceLogoBuf = loadLogoByCompanyName(d['保险公司']);
+        if (!insuranceLogoBuf && INSURANCE_LOGO_URL) {
             console.log('[PDF] 从环境变量URL加载保险公司logo...');
             insuranceLogoBuf = await loadLogoImage(INSURANCE_LOGO_URL);
         }
@@ -465,8 +506,8 @@ function generatePdf(detail) {
             insuranceLogoBuf = await fetchLogoFromIconTable(d['保险公司']);
         }
 
-        // 2. 优先从环境变量URL加载
-        if (CAR_BRAND_LOGO_URL) {
+        let carBrandLogoBuf = loadLogoByCompanyName('问界');
+        if (!carBrandLogoBuf && CAR_BRAND_LOGO_URL) {
             console.log('[PDF] 从环境变量URL加载品牌logo...');
             carBrandLogoBuf = await loadLogoImage(CAR_BRAND_LOGO_URL);
         }
