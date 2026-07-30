@@ -379,23 +379,49 @@ async function loadLogoImage(value) {
  * @returns {Promise<Buffer|null>}
  */
 async function fetchLogoFromIconTable(companyName) {
-    if (!ICON_TABLE_ID || !companyName) return null;
+    if (!ICON_TABLE_ID || !companyName) {
+        console.warn(`[PDF] ICON_TABLE_ID=${ICON_TABLE_ID}, companyName=${companyName}`);
+        return null;
+    }
     try {
-        const { searchRecords, getTenantToken } = require('./feishu-api');
+        const { searchRecords } = require('./feishu-api');
         const records = await searchRecords(BASE_TOKEN, ICON_TABLE_ID);
+        console.log(`[PDF] 图标表共 ${records.length} 条记录`);
+        
+        // 打印所有记录的字段结构，便于调试
+        if (records.length > 0) {
+            const sample = records[0].fields;
+            console.log(`[PDF] 图标表字段名: ${Object.keys(sample).join(', ')}`);
+            console.log(`[PDF] 第一条记录样例:`, JSON.stringify(sample, null, 2).substring(0, 500));
+        }
         
         for (const record of records) {
             const fields = record.fields || {};
-            const name = fields['公司名称'] || fields['名称'] || '';
-            if (name && name.includes(companyName.substring(0, 4))) {
-                const logoField = fields['公司Logo'] || fields['logo'] || fields['Logo'] || '';
+            // 尝试多种字段名匹配公司名
+            const name = fields['公司名称'] || fields['名称'] || fields['公司'] || '';
+            console.log(`[PDF] 图标表记录: name="${name}"`);
+            
+            // 匹配：用公司名的前4个字符做模糊匹配
+            const searchKey = companyName.substring(0, 4);
+            if (name && name.includes(searchKey)) {
+                // 尝试多种logo字段名
+                const logoField = fields['公司Logo'] || fields['logo'] || fields['Logo'] || fields['公司logo'] || '';
+                console.log(`[PDF] 匹配到 ${name}, logo字段值:`, typeof logoField === 'object' ? JSON.stringify(logoField).substring(0, 200) : String(logoField).substring(0, 200));
+                
                 if (logoField) {
-                    console.log(`[PDF] 从图标表找到 ${companyName} 的logo`);
-                    return await loadLogoImage(logoField);
+                    const buf = await loadLogoImage(logoField);
+                    if (buf) {
+                        console.log(`[PDF] 成功加载 ${companyName} 的logo, 大小: ${buf.length} bytes`);
+                        return buf;
+                    } else {
+                        console.warn(`[PDF] logo字段存在但加载失败`);
+                    }
+                } else {
+                    console.warn(`[PDF] 匹配到记录但无logo字段`);
                 }
             }
         }
-        console.warn(`[PDF] 图标表中未找到 ${companyName} 的logo`);
+        console.warn(`[PDF] 图标表中未找到 ${companyName} 的logo (搜索key=${searchKey})`);
     } catch (e) {
         console.warn(`[PDF] 从图标表加载logo失败: ${e.message}`);
     }
