@@ -288,10 +288,6 @@ function generateTextFromRecord(detail) {
     t += `  三年期          ${formatMoney(d['非车价格u'])}     ${fm('新能源车损三年期')}\n`;
     t += `  三年期+（尊享版）${formatMoney(d['非车价格u+'])}    ${fm('新能源车损三年期+')}\n`;
     t += dash2 + '\n';
-    t += '\n';
-    t += line + '\n';
-    t += '本报价单仅供参考，最终以正式保单为准\n';
-    t += `生成时间：${new Date().toLocaleString('zh-CN')}\n`;
 
     return t;
 }
@@ -672,16 +668,6 @@ function generatePdf(detail) {
         y = drawTableRow(['方案二', '三年期', fm('新能源车损三年期')], y, false);
         y = drawTableRow(['方案三', '三年期+（尊享版）', fm('新能源车损三年期+')], y, false);
         y = drawSeparator(y);
-
-        // 底部说明
-        y += 4;
-        doc.save();
-        useFont();
-        doc.fillColor(COLORS.grayText); setFontSize(7.5);
-        doc.text('本报价单仅供参考，最终以正式保单为准', doc.page.margins.left, y, { align: 'left' });
-        y += 12;
-        doc.text(`生成时间：${new Date().toLocaleString('zh-CN')}`, doc.page.margins.left, y);
-        doc.restore();
 
         // 底部装饰线
         doc.save();
