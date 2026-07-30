@@ -282,8 +282,6 @@ function generateTextFromRecord(detail) {
         t += `  ${def.name}  ${def.baoE}  ${premium}\n`;
     }
     t += dash + '\n';
-    t += `  商业险合计                    ${fm('商业险合计')}\n`;
-    t += '\n';
     t += '【新能源车损保全（三方案同报）】\n';
     t += dash2 + '\n';
     t += `  两年期          ${formatMoney(d['非车价格m'])}     ${fm('新能源车损两年期')}\n`;
@@ -648,11 +646,6 @@ function generatePdf(detail) {
         for (const item of items) {
             y = drawTableRow(item, y, false);
         }
-
-        // 商业险合计
-        y += 3;
-        y = drawRow('商业险合计', fm('商业险合计'), y, true);
-        y = drawSeparator(y);
 
         // 新能源车损保全
         y = drawHeader('新能源车损保全（三方案同报）', y + 5);
