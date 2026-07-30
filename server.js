@@ -110,10 +110,10 @@ function formatMoney(n) {
     return '¥' + num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/** 保额格式化：去掉￥符号，数值单位为万 */
+/** 保额格式化：去掉￥符号，数值单位为万（不带单位文字） */
 function formatBaoE(n) {
     const num = toNumber(n);
-    return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '万';
+    return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /**
