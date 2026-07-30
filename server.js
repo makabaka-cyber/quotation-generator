@@ -110,10 +110,10 @@ function formatMoney(n) {
     return '¥' + num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/** 保额格式化：去掉￥符号，数值单位为万（不带单位文字） */
+/** 保额格式化：数字显示，不带小数 */
 function formatBaoE(n) {
     const num = toNumber(n);
-    return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return Math.floor(num).toLocaleString('zh-CN');
 }
 
 /**
@@ -194,7 +194,7 @@ function buildRecordDetail(record) {
         '保险公司logo': record['保险公司logo'] || '',
         '问界logo': record['问界logo'] || '',
         '保单编号': record['保单编号'] || '',
-        '交强保额': toNumber(record['交强保额']) || 20,
+        '交强保额': toNumber(record['交强保额']) || 200000,
         '交强保费': toNumber(record['交强保费']),
         '车船税': toNumber(record['车船税']),
         '车损险保费': toNumber(record['车损险保费']),
