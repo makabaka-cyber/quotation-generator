@@ -576,35 +576,48 @@ function generatePdf(detail) {
         doc.restore();
         y += 10;
 
-        // 绘制 logo（左上角保险公司 logo，右上角问界 logo）
+        // 绘制 logo（左上角并排：保险公司logo + 问界logo）
         const logoY = y;
+        const logoH = 32;
+        const logoGap = 20;
+        let logoX = doc.page.margins.left;
+
+        // 保险公司 logo
         try {
             if (insuranceLogoBuf) {
-                doc.image(insuranceLogoBuf, doc.page.margins.left, logoY, { width: 70, fit: [70, 28] });
+                doc.image(insuranceLogoBuf, logoX, logoY, { height: logoH, fit: [140, logoH] });
+                const insLogoWidth = doc.widthOfString(get('保险公司')) > 0 ? 140 : 80;
+                logoX += 140 + logoGap;
             } else {
                 doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(11);
-                doc.text(get('保险公司'), doc.page.margins.left, logoY + 4, { width: 80 });
+                const insTextWidth = doc.widthOfString(get('保险公司')) + 10;
+                doc.text(get('保险公司'), logoX, logoY + 6, { width: insTextWidth });
                 doc.restore();
+                logoX += insTextWidth + logoGap;
             }
         } catch (e) {
             doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(11);
-            doc.text(get('保险公司'), doc.page.margins.left, logoY + 4, { width: 80 });
+            const insTextWidth = doc.widthOfString(get('保险公司')) + 10;
+            doc.text(get('保险公司'), logoX, logoY + 6, { width: insTextWidth });
             doc.restore();
+            logoX += insTextWidth + logoGap;
         }
+
+        // 问界 logo
         try {
             if (carBrandLogoBuf) {
-                doc.image(carBrandLogoBuf, doc.page.margins.left + contentWidth - 70, logoY, { width: 70, fit: [70, 28], align: 'right' });
+                doc.image(carBrandLogoBuf, logoX, logoY, { height: logoH, fit: [120, logoH] });
             } else {
                 doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(12);
-                doc.text('问界', doc.page.margins.left + contentWidth - 60, logoY + 3, { align: 'right', width: 60 });
+                doc.text('问界', logoX, logoY + 6);
                 doc.restore();
             }
         } catch (e) {
             doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(12);
-            doc.text('问界', doc.page.margins.left + contentWidth - 60, logoY + 3, { align: 'right', width: 60 });
+            doc.text('问界', logoX, logoY + 6);
             doc.restore();
         }
-        y += 32;
+        y += logoH + 10;
 
         // 主标题
         doc.save();
