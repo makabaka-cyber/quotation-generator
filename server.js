@@ -192,6 +192,7 @@ function buildRecordDetail(record) {
         '车型': record['车型'] || '',
         '保险公司': record['保险公司'] || '',
         '保险公司logo': record['保险公司logo'] || '',
+        '问界logo': record['问界logo'] || '',
         '保单编号': record['保单编号'] || '',
         '交强保额': toNumber(record['交强保额']) || 20,
         '交强保费': toNumber(record['交强保费']),
@@ -320,27 +321,32 @@ function generateTextFromRecord(detail) {
  * @returns {Promise<Buffer>} PDF 文件 Buffer
  */
 function generatePdf(detail) {
-    return new Promise((resolve, reject) => {
+    return (async () => {
         const d = detail || {};
         const get = (k) => (d[k] !== undefined && d[k] !== null && d[k] !== '') ? d[k] : '—';
         const fm = (k) => formatMoney(d[k]);
 
-        const doc = new PDFDocument({
-            size: 'A4',
-            margins: { top: 50, bottom: 50, left: 45, right: 45 },
-            info: {
-                Title: '保险报价确认单',
-                Author: '报价单生成系统',
-            },
-        });
+        // 预加载 logo 图片
+        const insuranceLogoBuf = await loadLogoImage(d['保险公司logo']);
+        const carBrandLogoBuf = await loadLogoImage(d['问界logo']);
 
-        const chunks = [];
-        doc.on('data', (chunk) => chunks.push(chunk));
-        doc.on('end', () => {
-            FONT_WORKED = !!CHINESE_FONT;
-            resolve(Buffer.concat(chunks));
-        });
-        doc.on('error', reject);
+        return new Promise((resolve, reject) => {
+            const doc = new PDFDocument({
+                size: 'A4',
+                margins: { top: 50, bottom: 50, left: 45, right: 45 },
+                info: {
+                    Title: '保险报价确认单',
+                    Author: '报价单生成系统',
+                },
+            });
+
+            const chunks = [];
+            doc.on('data', (chunk) => chunks.push(chunk));
+            doc.on('end', () => {
+                FONT_WORKED = !!CHINESE_FONT;
+                resolve(Buffer.concat(chunks));
+            });
+            doc.on('error', reject);
 
         // 注册中文字体（尝试加载，失败则使用默认字体）
         let hasChineseFont = false;
@@ -395,6 +401,43 @@ function generatePdf(detail) {
         };
 
         // === 辅助函数 ===
+
+        /** 从 URL 加载 logo 图片，返回 Buffer；失败返回 null */
+        async function loadLogoImage(url) {
+            if (!url) return null;
+            try {
+                const resp = await fetch(url);
+                if (resp.ok) {
+                    const buf = Buffer.from(await resp.arrayBuffer());
+                    if (buf.length > 0) return buf;
+                }
+            } catch (e) {
+                console.warn(`[PDF] 加载 logo 失败: ${e.message}`);
+            }
+            return null;
+        }
+
+        /** 绘制 logo 或文字兜底 */
+        function drawLogo(url, fallbackText, x, y, maxWidth) {
+            return loadLogoImage(url).then(buf => {
+                if (buf) {
+                    try {
+                        doc.image(buf, x, y, { width: maxWidth, fit: [maxWidth, 40], align: 'left' });
+                        return true;
+                    } catch (e) {
+                        // 图片格式不支持，降级为文字
+                    }
+                }
+                // 文字兜底
+                doc.save();
+                useFont();
+                doc.fillColor(COLORS.primary);
+                doc.fontSize(16);
+                doc.text(fallbackText, x, y + 8);
+                doc.restore();
+                return false;
+            });
+        }
 
         /**
          * 根据投保状态构建产品列表
@@ -514,6 +557,36 @@ function generatePdf(detail) {
         doc.restore();
         y += 14;
 
+        // 绘制 logo（左上角保险公司 logo，右上角问界 logo）
+        const logoY = y;
+        try {
+            if (insuranceLogoBuf) {
+                doc.image(insuranceLogoBuf, doc.page.margins.left, logoY, { width: 90, fit: [90, 36] });
+            } else {
+                doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(12);
+                doc.text(get('保险公司'), doc.page.margins.left, logoY + 6, { width: 100 });
+                doc.restore();
+            }
+        } catch (e) {
+            doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(12);
+            doc.text(get('保险公司'), doc.page.margins.left, logoY + 6, { width: 100 });
+            doc.restore();
+        }
+        try {
+            if (carBrandLogoBuf) {
+                doc.image(carBrandLogoBuf, doc.page.margins.left + contentWidth - 90, logoY, { width: 90, fit: [90, 36], align: 'right' });
+            } else {
+                doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(14);
+                doc.text('问界', doc.page.margins.left + contentWidth - 80, logoY + 4, { align: 'right', width: 80 });
+                doc.restore();
+            }
+        } catch (e) {
+            doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(14);
+            doc.text('问界', doc.page.margins.left + contentWidth - 80, logoY + 4, { align: 'right', width: 80 });
+            doc.restore();
+        }
+        y += 44;
+
         // 主标题
         doc.save();
         useFont();
@@ -610,7 +683,8 @@ function generatePdf(detail) {
         doc.restore();
 
         doc.end();
-    });
+        });
+    })();
 }
 
 // ============================================================
