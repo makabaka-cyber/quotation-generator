@@ -290,23 +290,6 @@ function generateTextFromRecord(detail) {
     t += `  三年期+（尊享版）${formatMoney(d['非车价格u+'])}    ${fm('新能源车损三年期+')}\n`;
     t += dash2 + '\n';
     t += '\n';
-    t += '【费用汇总】\n';
-    t += dash + '\n';
-    t += `  交强保费：${fm('交强保费')}\n`;
-    t += `  车船税：${fm('车船税')}\n`;
-    t += `  驾乘意外保费：${fm('驾乘意外保费')}\n`;
-    t += `  保险公司保费（交强+商业+驾乘）：${formatMoney(insuranceTotal)}\n`;
-    t += '\n';
-    t += dash + '\n';
-    t += '  方案一 · 新能源车损保全（两年期）\n';
-    t += `    合计：${fm('新能源车损两年期')}\n`;
-    t += '\n';
-    t += '  方案二 · 新能源车损保全（三年期）\n';
-    t += `    合计：${fm('新能源车损三年期')}\n`;
-    t += '\n';
-    t += '  方案三 · 新能源车损保全（三年期+ 尊享版）\n';
-    t += `    合计：${fm('新能源车损三年期+')}\n`;
-    t += '\n';
     t += line + '\n';
     t += '本报价单仅供参考，最终以正式保单为准\n';
     t += `生成时间：${new Date().toLocaleString('zh-CN')}\n`;
@@ -681,27 +664,6 @@ function generatePdf(detail) {
         y = drawTableRow(['方案一', '两年期', fm('新能源车损两年期')], y, false);
         y = drawTableRow(['方案二', '三年期', fm('新能源车损三年期')], y, false);
         y = drawTableRow(['方案三', '三年期+（尊享版）', fm('新能源车损三年期+')], y, false);
-        y = drawSeparator(y);
-
-        // 费用汇总
-        y = drawHeader('费 用 汇 总', y + 5);
-        y += 5;
-
-        y = drawRow('交强保费', fm('交强保费'), y, false);
-        y = drawRow('车船税', fm('车船税'), y, false);
-        y = drawRow('驾乘意外保费', fm('驾乘意外保费'), y, false);
-        y = drawRow('保险公司保费（交强+商业+驾乘）', formatMoney(toNumber(d['保险公司保费'])), y, true);
-        y = drawSeparator(y);
-
-        // 方案合计总览
-        y = drawSectionTitle('三方案总价对比', y);
-        y += 3;
-
-        // 方案对比表头
-        y = drawTableRow(['方案', '保障期限', '总价'], y, true);
-        y = drawTableRow(['方案一', '新能源车损保全（两年期）', fm('新能源车损两年期')], y, false);
-        y = drawTableRow(['方案二', '新能源车损保全（三年期）', fm('新能源车损三年期')], y, false);
-        y = drawTableRow(['方案三', '新能源车损保全（三年期+尊享版）', fm('新能源车损三年期+')], y, false);
         y = drawSeparator(y);
 
         // 底部说明
