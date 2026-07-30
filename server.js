@@ -191,8 +191,9 @@ function buildRecordDetail(record) {
         '客户信息': record['客户信息'] || '',
         '车型': record['车型'] || '',
         '保险公司': record['保险公司'] || '',
-        '保险公司logo': record['保险公司logo'] || '',
-        '问界logo': record['问界logo'] || '',
+        // 优先读取「图标-公司logo」字段，回退到「公司Logo」，最后回退到原字段
+        '保险公司logo': record['图标-公司logo'] || record['公司Logo'] || record['保险公司logo'] || '',
+        '问界logo': record['图标-品牌logo'] || record['品牌Logo'] || record['问界logo'] || '',
         '保单编号': record['保单编号'] || '',
         '交强保额': toNumber(record['交强保额']) || 200000,
         '交强保费': toNumber(record['交强保费']),
