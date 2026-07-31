@@ -877,11 +877,11 @@ function drawLogos(doc, opts) {
             try {
                 doc.save();
                 const drawX = safeRightX - estimatedWidth;
-                console.log(`[PDF] 绘制品牌logo: x=${drawX}, y=${y}, height=${safeLogoH}, fit=[${estimatedWidth},${safeLogoH}]`);
+                console.log(`[PDF] 绘制品牌logo: x=${drawX}, y=${y}, width=${estimatedWidth}, height=${safeLogoH}`);
+                // 只传width和height，不传fit避免冲突
                 doc.image(logoBuf, drawX, y, { 
-                    height: safeLogoH, 
-                    fit: [estimatedWidth, safeLogoH],
-                    align: 'right'
+                    width: estimatedWidth,
+                    height: safeLogoH
                 });
                 doc.restore();
                 console.log(`[PDF] ✅ 渲染右上角logo图片: ${displayName} (${estimatedWidth}px宽)`);
