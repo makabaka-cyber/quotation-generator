@@ -849,19 +849,57 @@ function drawLogos(doc, opts) {
         return { width: textWidth, height: logoH };
     }
 
-    // 绘制保险公司logo
+    // 绘制保险公司logo（左上角）
     const insLogo = drawSingleLogo(companyName || '未知公司', companyLogoBuf, currentX);
-    currentX += insLogo.width + logoGap;
     maxY = Math.max(maxY, y + insLogo.height);
 
-    // 绘制品牌logo（问界）
-    const brandLogo = drawSingleLogo(brandName, brandLogoBuf, currentX);
-    currentX += brandLogo.width;
+    // 绘制品牌logo（问界）（右上角）
+    const brandLogoX = pageWidth - pageMarginRight;
+    const brandLogo = drawBrandLogoRight(brandName, brandLogoBuf, brandLogoX);
     maxY = Math.max(maxY, y + brandLogo.height);
 
     console.log(`[PDF] Logo渲染完成: 保险公司=${companyName || '未知'}, 品牌=${brandName}`);
     
     return { nextY: maxY };
+
+    // 辅助函数：右上角绘制品牌logo（闭包内，可访问所有局部变量）
+    function drawBrandLogoRight(name, logoBuf, rightX) {
+        const displayName = getDisplayName(name);
+        const maxLogoWidth = 120; // 品牌logo小一些
+        const estimatedWidth = Math.min(maxLogoWidth, logoH * 4);
+        
+        if (logoBuf && logoBuf.length > 100) {
+            try {
+                doc.save();
+                doc.image(logoBuf, rightX - estimatedWidth, y, { 
+                    height: logoH, 
+                    fit: [estimatedWidth, logoH],
+                    align: 'right'
+                });
+                doc.restore();
+                console.log(`[PDF] 渲染右上角logo图片: ${displayName} (${estimatedWidth}px宽)`);
+                return { width: estimatedWidth, height: logoH };
+            } catch (e) {
+                console.warn(`[PDF] 渲染右上角logo图片失败: ${e.message}，使用文字降级`);
+                return drawBrandTextRight(displayName, rightX);
+            }
+        } else {
+            return drawBrandTextRight(displayName, rightX);
+        }
+    }
+
+    function drawBrandTextRight(displayName, rightX) {
+        doc.save();
+        useFont();
+        doc.fillColor(colors.primary);
+        setFontSize(13);
+        const textY = y + (logoH - 16) / 2;
+        const textWidth = doc.widthOfString(displayName) + 8;
+        doc.text(displayName, rightX - textWidth, textY);
+        doc.restore();
+        console.log(`[PDF] 渲染右上角文字logo: ${displayName} (${textWidth}px宽)`);
+        return { width: textWidth, height: logoH };
+    }
 }
 
 // ============================================================
