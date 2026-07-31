@@ -1217,7 +1217,7 @@ function generatePdf(detail) {
         doc.save();
         useFont();
         doc.fillColor(COLORS.primary); setFontSize(18);
-        doc.text('保 险 报 价 确 认 单', { align: 'center', width: contentWidth });
+        doc.text('保 险 报 价 确 认 单', doc.page.margins.left, y, { align: 'center', width: contentWidth });
         doc.restore();
         y += 22;
 
