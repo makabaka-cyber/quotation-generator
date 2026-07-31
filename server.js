@@ -679,7 +679,47 @@ async function fetchLogoFromIconTable(companyName) {
                 const first = fieldValue[0];
                 if (first && first.file_token) {
                     console.log(`[PDF] 找到附件字段"${fieldName}": file_token=${first.file_token.substring(0, 20)}..., name=${first.name || '?'}`);
-                    const buf = await loadLogoImage(fieldValue);
+                    console.log(`[PDF] 附件详情: type=${first.type}, size=${first.size}, file_token=${first.file_token}`);
+                    
+                    // 直接测试下载，绕过loadLogoImage的复杂逻辑
+                    let buf = await loadLogoImage(fieldValue);
+                    
+                    // 如果loadLogoImage失败，直接用file_token下载
+                    if (!buf || buf.length < 20) {
+                        console.log(`[PDF] loadLogoImage失败，尝试直接用file_token下载...`);
+                        try {
+                            const { getTenantToken } = require('./feishu-api');
+                            const token = await getTenantToken();
+                            
+                            // 尝试多种extra参数
+                            const extraConfigs = [
+                                ICON_TABLE_ID ? `{"bitablePerm":{"tableId":"${ICON_TABLE_ID}","rev":0}}` : null,
+                                TABLE_ID ? `{"bitablePerm":{"tableId":"${TABLE_ID}","rev":0}}` : null,
+                                null,
+                            ];
+                            
+                            for (const extra of extraConfigs) {
+                                const durl = extra
+                                    ? `https://open.feishu.cn/open-apis/drive/v1/medias/${first.file_token}/download?extra=${encodeURIComponent(extra)}`
+                                    : `https://open.feishu.cn/open-apis/drive/v1/medias/${first.file_token}/download`;
+                                const resp = await fetch(durl, { headers: { 'Authorization': `Bearer ${token}` } });
+                                console.log(`[PDF] 直接下载: HTTP ${resp.status}, extra=${extra ? extra.substring(0,50) : 'none'}`);
+                                if (resp.ok) {
+                                    const b = Buffer.from(await resp.arrayBuffer());
+                                    if (b.length >= 20) {
+                                        buf = b;
+                                        console.log(`[PDF] ✅ 直接下载成功: ${b.length} bytes`);
+                                        break;
+                                    }
+                                } else {
+                                    try { console.log(`[PDF] 错误: ${(await resp.text()).substring(0,150)}`); } catch(e) {}
+                                }
+                            }
+                        } catch (e) {
+                            console.error(`[PDF] 直接下载异常: ${e.message}`);
+                        }
+                    }
+                    
                     if (buf && buf.length >= 20) {
                         console.log(`[PDF] ✅ 从图标表加载logo成功: ${mapping.name} (${buf.length} bytes)`);
 
