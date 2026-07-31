@@ -1693,42 +1693,115 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // GET /debug/logos/test — 测试图标表logo下载
+    // GET /debug/logos/test — 测试图标表logo下载（带详细诊断）
     if (req.method === 'GET' && url.pathname === '/debug/logos/test') {
         (async () => {
             const testCompanies = ['中国平安', '中国人寿', '中国太平洋', '中国人保', '太平保险', '中华联合', '问界'];
             const results = [];
             
             for (const company of testCompanies) {
-                console.log(`[Logo测试] 测试 ${company}`);
+                console.log(`[Logo测试] ====== 测试 ${company} ======`);
                 let result = {
                     company,
                     mapping: findLogoMapping(company)?.name || null,
+                    mappingKeywords: findLogoMapping(company)?.keywords || [],
                     success: false,
                     bufferSize: 0,
+                    steps: [],
                     error: null,
                 };
                 
                 try {
-                    // 先查本地
+                    // 步骤1: 本地
                     const localBuf = loadLogoByCompanyName(company);
+                    result.steps.push({ step: '本地文件', success: !!localBuf, size: localBuf?.length || 0 });
                     if (localBuf) {
                         result.success = true;
                         result.bufferSize = localBuf.length;
                         result.source = 'local';
-                    } else {
-                        // 查图标表
-                        const remoteBuf = await fetchLogoFromIconTable(company);
-                        if (remoteBuf) {
-                            result.success = true;
-                            result.bufferSize = remoteBuf.length;
-                            result.source = 'icon-table';
-                        } else {
-                            result.error = '本地和图标表均无logo';
+                        results.push(result);
+                        continue;
+                    }
+                    
+                    // 步骤2: 查询图标表
+                    console.log(`[Logo测试] 查询图标表...`);
+                    const { searchRecords } = require('./feishu-api');
+                    const records = await searchRecords(BASE_TOKEN, ICON_TABLE_ID);
+                    result.steps.push({ step: '查询图标表', recordsFound: records.length });
+                    
+                    const mapping = findLogoMapping(company);
+                    if (!mapping) {
+                        result.error = '无关键词映射';
+                        results.push(result);
+                        continue;
+                    }
+                    
+                    // 步骤3: 遍历记录找匹配
+                    let matchedRecord = null;
+                    let matchedField = null;
+                    for (const record of records) {
+                        const fields = record.fields || {};
+                        for (const [fieldName, fieldValue] of Object.entries(fields)) {
+                            if (Array.isArray(fieldValue) && fieldValue.length > 0 && fieldValue[0]?.file_token) continue;
+                            const textValue = normalizeFieldValueToString(fieldValue);
+                            if (!textValue) continue;
+                            for (const keyword of mapping.keywords) {
+                                if (textValue.includes(keyword)) {
+                                    matchedRecord = record;
+                                    matchedField = fieldName;
+                                    console.log(`[Logo测试] 匹配: ${fieldName}=${textValue} 含关键词"${keyword}"`);
+                                    break;
+                                }
+                            }
+                            if (matchedRecord) break;
                         }
+                        if (matchedRecord) break;
+                    }
+                    result.steps.push({ step: '匹配公司名', matched: !!matchedRecord, field: matchedField });
+                    
+                    if (!matchedRecord) {
+                        result.error = '图标表中未找到匹配记录';
+                        results.push(result);
+                        continue;
+                    }
+                    
+                    // 步骤4: 找附件字段
+                    const fields = matchedRecord.fields || {};
+                    let attachmentField = null;
+                    let attachmentToken = null;
+                    for (const [fieldName, fieldValue] of Object.entries(fields)) {
+                        if (!Array.isArray(fieldValue) || fieldValue.length === 0) continue;
+                        const first = fieldValue[0];
+                        if (first && first.file_token) {
+                            attachmentField = fieldName;
+                            attachmentToken = first.file_token;
+                            console.log(`[Logo测试] 找到附件: ${fieldName}, token=${attachmentToken?.substring(0, 20)}..., name=${first.name}`);
+                            break;
+                        }
+                    }
+                    result.steps.push({ step: '查找附件', found: !!attachmentToken, field: attachmentField, token: attachmentToken?.substring(0, 20) });
+                    
+                    if (!attachmentToken) {
+                        result.error = '匹配记录但无附件字段';
+                        results.push(result);
+                        continue;
+                    }
+                    
+                    // 步骤5: 尝试下载
+                    console.log(`[Logo测试] 尝试下载 token=${attachmentToken}...`);
+                    const buf = await loadLogoImage([{ file_token: attachmentToken, name: 'test.png', type: 'image/png' }]);
+                    result.steps.push({ step: '下载', success: !!buf, size: buf?.length || 0 });
+                    
+                    if (buf) {
+                        result.success = true;
+                        result.bufferSize = buf.length;
+                        result.source = 'icon-table';
+                    } else {
+                        result.error = '下载失败';
                     }
                 } catch (e) {
                     result.error = e.message;
+                    result.steps.push({ step: '异常', error: e.message });
                 }
                 
                 results.push(result);
