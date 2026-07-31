@@ -1699,19 +1699,18 @@ const server = http.createServer(async (req, res) => {
             const testCompanies = ['中国平安', '中国人寿', '中国太平洋', '中国人保', '太平保险', '中华联合', '问界'];
             const results = [];
             console.log('[Logo测试] ===== 开始详细诊断 v2 =====');
-            
+
             for (const company of testCompanies) {
                 console.log(`[Logo测试] ====== 测试 ${company} ======`);
                 let result = {
                     company,
                     mapping: findLogoMapping(company)?.name || null,
-                    mappingKeywords: findLogoMapping(company)?.keywords || [],
                     success: false,
                     bufferSize: 0,
                     steps: [],
                     error: null,
                 };
-                
+
                 try {
                     // 步骤1: 本地
                     const localBuf = loadLogoByCompanyName(company);
@@ -1723,91 +1722,127 @@ const server = http.createServer(async (req, res) => {
                         results.push(result);
                         continue;
                     }
-                    
+
                     // 步骤2: 查询图标表
-                    console.log(`[Logo测试] 查询图标表...`);
-                    const { searchRecords } = require('./feishu-api');
+                    const { searchRecords, getTenantToken } = require('./feishu-api');
                     const records = await searchRecords(BASE_TOKEN, ICON_TABLE_ID);
                     result.steps.push({ step: '查询图标表', recordsFound: records.length });
-                    
+
                     const mapping = findLogoMapping(company);
                     if (!mapping) {
                         result.error = '无关键词映射';
                         results.push(result);
                         continue;
                     }
-                    
+
                     // 步骤3: 遍历记录找匹配
                     let matchedRecord = null;
-                    let matchedField = null;
+                    let attachmentToken = null;
+                    let attachmentInfo = null;
                     for (const record of records) {
                         const fields = record.fields || {};
+                        let nameMatched = false;
                         for (const [fieldName, fieldValue] of Object.entries(fields)) {
                             if (Array.isArray(fieldValue) && fieldValue.length > 0 && fieldValue[0]?.file_token) continue;
                             const textValue = normalizeFieldValueToString(fieldValue);
                             if (!textValue) continue;
                             for (const keyword of mapping.keywords) {
                                 if (textValue.includes(keyword)) {
-                                    matchedRecord = record;
-                                    matchedField = fieldName;
-                                    console.log(`[Logo测试] 匹配: ${fieldName}=${textValue} 含关键词"${keyword}"`);
+                                    nameMatched = true;
                                     break;
                                 }
                             }
-                            if (matchedRecord) break;
+                            if (nameMatched) break;
                         }
-                        if (matchedRecord) break;
-                    }
-                    result.steps.push({ step: '匹配公司名', matched: !!matchedRecord, field: matchedField });
-                    
-                    if (!matchedRecord) {
-                        result.error = '图标表中未找到匹配记录';
-                        results.push(result);
-                        continue;
-                    }
-                    
-                    // 步骤4: 找附件字段
-                    const fields = matchedRecord.fields || {};
-                    let attachmentField = null;
-                    let attachmentToken = null;
-                    for (const [fieldName, fieldValue] of Object.entries(fields)) {
-                        if (!Array.isArray(fieldValue) || fieldValue.length === 0) continue;
-                        const first = fieldValue[0];
-                        if (first && first.file_token) {
-                            attachmentField = fieldName;
-                            attachmentToken = first.file_token;
-                            console.log(`[Logo测试] 找到附件: ${fieldName}, token=${attachmentToken?.substring(0, 20)}..., name=${first.name}`);
+                        if (nameMatched) {
+                            matchedRecord = record;
+                            // 找附件
+                            for (const [fieldName, fieldValue] of Object.entries(fields)) {
+                                if (!Array.isArray(fieldValue) || fieldValue.length === 0) continue;
+                                const first = fieldValue[0];
+                                if (first && first.file_token) {
+                                    attachmentToken = first.file_token;
+                                    attachmentInfo = { field: fieldName, name: first.name, size: first.size, type: first.type };
+                                    break;
+                                }
+                            }
                             break;
                         }
                     }
-                    result.steps.push({ step: '查找附件', found: !!attachmentToken, field: attachmentField, token: attachmentToken?.substring(0, 20) });
-                    
+                    result.steps.push({ step: '匹配+查找附件', matched: !!matchedRecord, attachment: attachmentInfo, token: attachmentToken?.substring(0, 20) });
+
                     if (!attachmentToken) {
-                        result.error = '匹配记录但无附件字段';
+                        result.error = '未找到附件';
                         results.push(result);
                         continue;
                     }
-                    
-                    // 步骤5: 尝试下载
-                    console.log(`[Logo测试] 尝试下载 token=${attachmentToken}...`);
-                    const buf = await loadLogoImage([{ file_token: attachmentToken, name: 'test.png', type: 'image/png' }]);
-                    result.steps.push({ step: '下载', success: !!buf, size: buf?.length || 0 });
-                    
-                    if (buf) {
-                        result.success = true;
-                        result.bufferSize = buf.length;
-                        result.source = 'icon-table';
-                    } else {
-                        result.error = '下载失败';
+
+                    // 步骤4: 直接测试下载（绕过loadLogoImage，直接调用API查看详细错误）
+                    const tenantToken = await getTenantToken();
+                    const downloadTests = [];
+
+                    // 测试API 1: medias
+                    try {
+                        const resp1 = await fetch(`https://open.feishu.cn/open-apis/drive/v1/medias/${attachmentToken}/download`, {
+                            headers: { 'Authorization': `Bearer ${tenantToken}` }
+                        });
+                        const resp1Info = { api: 'medias', status: resp1.status, ok: resp1.ok };
+                        if (resp1.ok) {
+                            const buf = Buffer.from(await resp1.arrayBuffer());
+                            resp1Info.size = buf.length;
+                            if (buf.length > 500) {
+                                result.success = true;
+                                result.bufferSize = buf.length;
+                                result.source = 'icon-table';
+                                downloadTests.push(resp1Info);
+                                result.steps.push({ step: '下载', success: true, tests: downloadTests });
+                                results.push(result);
+                                continue;
+                            }
+                        } else {
+                            try { resp1Info.body = (await resp1.text()).substring(0, 300); } catch(e) {}
+                        }
+                        downloadTests.push(resp1Info);
+                    } catch (e) {
+                        downloadTests.push({ api: 'medias', error: e.message });
                     }
+
+                    // 测试API 2: files
+                    try {
+                        const resp2 = await fetch(`https://open.feishu.cn/open-apis/drive/v1/files/${attachmentToken}/download`, {
+                            headers: { 'Authorization': `Bearer ${tenantToken}` }
+                        });
+                        const resp2Info = { api: 'files', status: resp2.status, ok: resp2.ok };
+                        if (resp2.ok) {
+                            const buf = Buffer.from(await resp2.arrayBuffer());
+                            resp2Info.size = buf.length;
+                            if (buf.length > 500) {
+                                result.success = true;
+                                result.bufferSize = buf.length;
+                                result.source = 'icon-table';
+                                downloadTests.push(resp2Info);
+                                result.steps.push({ step: '下载', success: true, tests: downloadTests });
+                                results.push(result);
+                                continue;
+                            }
+                        } else {
+                            try { resp2Info.body = (await resp2.text()).substring(0, 300); } catch(e) {}
+                        }
+                        downloadTests.push(resp2Info);
+                    } catch (e) {
+                        downloadTests.push({ api: 'files', error: e.message });
+                    }
+
+                    result.steps.push({ step: '下载', success: false, tests: downloadTests });
+                    result.error = '所有下载API均失败';
                 } catch (e) {
                     result.error = e.message;
                     result.steps.push({ step: '异常', error: e.message });
                 }
-                
+
                 results.push(result);
             }
-            
+
             const successCount = results.filter(r => r.success).length;
             sendJson(res, 200, {
                 total: results.length,
