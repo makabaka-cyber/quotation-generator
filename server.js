@@ -875,14 +875,34 @@ function drawLogos(doc, opts) {
         
         if (logoBuf && logoBuf.length > 100) {
             try {
+                // 检查图片格式
+                const header = logoBuf.slice(0, 8).toString('hex');
+                const isPng = header.startsWith('89504e47');
+                const isJpg = header.startsWith('ffd8ff');
+                const isGif = header.startsWith('474946');
+                const isSvg = logoBuf.toString('utf8', 0, 100).includes('<svg');
+                console.log(`[PDF] 品牌logo格式: header=${header.substring(0,16)}, png=${isPng}, jpg=${isJpg}, gif=${isGif}, svg=${isSvg}`);
+                
                 doc.save();
                 const drawX = safeRightX - estimatedWidth;
                 console.log(`[PDF] 绘制品牌logo: x=${drawX}, y=${y}, width=${estimatedWidth}, height=${safeLogoH}`);
-                // 只传width和height，不传fit避免冲突
-                doc.image(logoBuf, drawX, y, { 
-                    width: estimatedWidth,
-                    height: safeLogoH
-                });
+                
+                // 尝试使用openImage预加载
+                try {
+                    const image = doc.openImage(logoBuf);
+                    console.log(`[PDF] openImage成功: width=${image.width}, height=${image.height}`);
+                    doc.image(image, drawX, y, { 
+                        width: estimatedWidth,
+                        height: safeLogoH
+                    });
+                } catch (openErr) {
+                    console.warn(`[PDF] openImage失败: ${openErr.message}，尝试直接传buffer`);
+                    doc.image(logoBuf, drawX, y, { 
+                        width: estimatedWidth,
+                        height: safeLogoH
+                    });
+                }
+                
                 doc.restore();
                 console.log(`[PDF] ✅ 渲染右上角logo图片: ${displayName} (${estimatedWidth}px宽)`);
                 return { width: estimatedWidth, height: safeLogoH };
