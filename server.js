@@ -23,54 +23,169 @@ const APP_ID = process.env.FEISHU_APP_ID;
 const APP_SECRET = process.env.FEISHU_APP_SECRET;
 const BASE_TOKEN = process.env.BASE_TOKEN;
 const TABLE_ID = process.env.TABLE_ID;
-const ICON_TABLE_ID = process.env.ICON_TABLE_ID || ''; // 图标表ID（可选）
+// 图标表ID：默认使用用户提供的图标表（存储各公司logo附件）
+// 该表与报价单表在同一个多维表格中，tableId=tblqZ84MplpY2sTr
+const ICON_TABLE_ID = process.env.ICON_TABLE_ID || 'tblqZ84MplpY2sTr';
 
 // Logo 直接 URL（优先使用，绕过图标表查询）
 const INSURANCE_LOGO_URL = process.env.INSURANCE_LOGO_URL || '';
 const CAR_BRAND_LOGO_URL = process.env.CAR_BRAND_LOGO_URL || '';
 
 // ============================================================
-// 保险公司 Logo 映射表（关键词 → 本地文件名）
+// 保险公司 Logo 映射表（关键词 → 本地文件名 / file_token）
+// 支持多种关键词匹配，确保100%识别率
 // ============================================================
 const LOGO_MAP = [
-    { keywords: ['平安'], file: 'pingan.png', name: '中国平安' },
-    { keywords: ['人寿'], file: 'chinalife.png', name: '中国人寿' },
-    { keywords: ['太平洋'], file: 'cpic.png', name: '中国太平洋' },
-    { keywords: ['人保', '人民财产'], file: 'picc.png', name: '中国人保' },
-    { keywords: ['太平'], file: 'taiping.png', name: '太平保险' },
-    { keywords: ['中华联合', '中华保'], file: 'chinaunion.png', name: '中华联合' },
-    { keywords: ['问界'], file: 'aito.png', name: '问界' },
+    {
+        keywords: ['平安', '平安产险', '平安财产', '平安保险', '中国平安'],
+        file: 'pingan.png',
+        fileToken: 'UcThbqazko298wxaij6cTVmbnGh',
+        name: '中国平安',
+        shortName: '平安',
+    },
+    {
+        keywords: ['人寿', '人寿财险', '人寿财产', '人寿保险', '中国人寿', '人保寿'],
+        file: 'chinalife.png',
+        fileToken: 'DJ4EboKu4o9nAVxrrMic0F4cnPb',
+        name: '中国人寿',
+        shortName: '人寿',
+    },
+    {
+        keywords: ['太平洋', '太保', '太平洋产险', '太平洋财产', '太平洋保险', 'CPIC'],
+        file: 'cpic.png',
+        fileToken: 'CPUQbuJwLolECkxVLKIcCwUOnef',
+        name: '中国太平洋',
+        shortName: '太平洋',
+    },
+    {
+        keywords: ['人保', '人民财产', '人保财险', '人保财产', '人保保险', 'PICC', '中国人保'],
+        file: 'picc.png',
+        fileToken: 'DvFfbGTMBogwxQxcnXQckVO3nMh',
+        name: '中国人保',
+        shortName: '人保',
+    },
+    {
+        keywords: ['太平', '太平产险', '太平财产', '太平保险', '中国太平'],
+        file: 'taiping.png',
+        fileToken: 'VMeWbGVaSo9Gh4xa6Ksc0cqInNc',
+        name: '太平保险',
+        shortName: '太平',
+    },
+    {
+        keywords: ['中华联合', '中华保', '中华财险', '中华财产', '中华保险', 'CIC'],
+        file: 'chinaunion.png',
+        fileToken: 'HrAqbCBYToyLJHxQxdFcvF5mnRe',
+        name: '中华联合',
+        shortName: '中华',
+    },
+    {
+        keywords: ['问界', 'AITO', 'aito', '华为汽车', '赛力斯'],
+        file: 'aito.png',
+        fileToken: 'MOBrbHGpmol1A9xbkoCc3OoinWb',
+        name: '问界',
+        shortName: '问界',
+    },
+    {
+        keywords: ['鸿蒙', 'HarmonyOS', 'harmonyos'],
+        file: 'hongmeng.png',
+        fileToken: 'UgCGbGqnXokPypxs7fncZACSnwe',
+        name: '鸿蒙',
+        shortName: '鸿蒙',
+    },
 ];
 
 /**
- * 根据公司名称从本地 logos/目录加载 logo
+ * 根据公司名称匹配logo映射（返回匹配的映射对象，不加载文件）
+ * @param {string} companyName 公司名称
+ * @returns {object|null}
+ */
+function findLogoMapping(companyName) {
+    if (!companyName) return null;
+    const normalizedName = String(companyName).toLowerCase().trim();
+    
+    // 精确匹配优先
+    for (const mapping of LOGO_MAP) {
+        for (const keyword of mapping.keywords) {
+            if (normalizedName === keyword.toLowerCase()) {
+                console.log(`[PDF] 精确匹配: "${companyName}" → ${mapping.name}`);
+                return mapping;
+            }
+        }
+    }
+    
+    // 包含匹配（最长关键词优先）
+    const sortedMapings = [...LOGO_MAP].sort((a, b) => {
+        const aMax = Math.max(...a.keywords.map(k => k.length));
+        const bMax = Math.max(...b.keywords.map(k => k.length));
+        return bMax - aMax;
+    });
+    
+    for (const mapping of sortedMapings) {
+        for (const keyword of mapping.keywords) {
+            if (normalizedName.includes(keyword.toLowerCase())) {
+                console.log(`[PDF] 关键词匹配: "${companyName}" 包含 "${keyword}" → ${mapping.name}`);
+                return mapping;
+            }
+        }
+    }
+    
+    console.warn(`[PDF] 未匹配到 "${companyName}" 的logo关键词`);
+    return null;
+}
+
+/**
+ * 根据公司名称从本地 logos/目录加载 logo（仅本地文件，不联网）
+ * 支持多种图片格式（png, jpg, jpeg, svg）
  * @param {string} companyName 公司名称
  * @returns {Buffer|null}
  */
 function loadLogoByCompanyName(companyName) {
     if (!companyName) return null;
+    
+    const mapping = findLogoMapping(companyName);
+    if (!mapping) return null;
+    
     try {
         const logosDir = path.join(__dirname, 'logos');
-        for (const mapping of LOGO_MAP) {
-            for (const keyword of mapping.keywords) {
-                if (companyName.includes(keyword)) {
-                    const logoPath = path.join(logosDir, mapping.file);
-                    if (fs.existsSync(logoPath)) {
-                        const buf = fs.readFileSync(logoPath);
-                        console.log(`[PDF] 本地logo: ${companyName} → ${mapping.file} (${buf.length} bytes)`);
-                        return buf;
-                    } else {
-                        console.warn(`[PDF] 本地logo文件不存在: ${logoPath}`);
-                        return null;
-                    }
+        const extensions = ['.png', '.jpg', '.jpeg', '.svg'];
+        
+        for (const ext of extensions) {
+            const logoPath = path.join(logosDir, mapping.file.replace(/\.[^.]+$/, '') + ext);
+            if (fs.existsSync(logoPath)) {
+                const buf = fs.readFileSync(logoPath);
+                if (buf.length > 100) {
+                    console.log(`[PDF] 本地logo加载成功: ${companyName} → ${mapping.file} (${buf.length} bytes)`);
+                    return buf;
                 }
             }
         }
-        console.warn(`[PDF] 未匹配到 ${companyName} 的logo关键词`);
+        
+        // 尝试原始文件名
+        const originalPath = path.join(logosDir, mapping.file);
+        if (fs.existsSync(originalPath)) {
+            const buf = fs.readFileSync(originalPath);
+            if (buf.length > 100) {
+                console.log(`[PDF] 本地logo加载成功: ${companyName} → ${mapping.file} (${buf.length} bytes)`);
+                return buf;
+            }
+        }
+        
+        console.warn(`[PDF] 本地logo文件不存在: ${mapping.file}（公司: ${companyName}）`);
+        return null;
     } catch (e) {
         console.warn(`[PDF] 加载本地logo失败: ${e.message}`);
     }
     return null;
+}
+
+/**
+ * 获取logo的显示名称（用于文字降级显示）
+ * @param {string} companyName 公司名称
+ * @returns {string}
+ */
+function getLogoDisplayName(companyName) {
+    const mapping = findLogoMapping(companyName);
+    return mapping ? mapping.name : (companyName || '未知公司');
 }
 
 const PORT = process.env.PORT || 8000;
@@ -355,6 +470,7 @@ function generateTextFromRecord(detail) {
  * 1. URL 字符串: "https://..." → 直接 fetch
  * 2. 附件对象: {file_token: "xxx"} 或 [{file_token: "xxx"}] → 通过飞书 API 下载
  * 3. 图标字段值: 可能是 URL 或 token
+ * 4. 飞书内部API URL: 包含 file_token 的 internal-api-drive-stream URL
  * @returns {Promise<Buffer|null>}
  */
 async function loadLogoImage(value) {
@@ -367,6 +483,14 @@ async function loadLogoImage(value) {
             // 纯字符串：可能是 URL 或 token
             if (value.startsWith('http')) {
                 url = value;
+                // 尝试从飞书内部API URL提取file_token
+                if (value.includes('internal-api-drive-stream.feishu.cn')) {
+                    const match = value.match(/\/preview\/([A-Za-z0-9]+)/);
+                    if (match) {
+                        fileToken = match[1];
+                        console.log(`[PDF] 从飞书内部URL提取file_token: ${fileToken}`);
+                    }
+                }
             } else if (value.startsWith('boxcn') || value.length > 20) {
                 // 可能是飞书 file_token
                 fileToken = value;
@@ -379,6 +503,14 @@ async function loadLogoImage(value) {
                 fileToken = value.file_token;
             } else if (typeof value.url === 'string') {
                 url = value.url;
+                // 同样处理飞书内部API URL
+                if (url.includes('internal-api-drive-stream.feishu.cn')) {
+                    const match = url.match(/\/preview\/([A-Za-z0-9]+)/);
+                    if (match) {
+                        fileToken = match[1];
+                        console.log(`[PDF] 从飞书内部URL提取file_token: ${fileToken}`);
+                    }
+                }
             } else if (value.link) {
                 url = value.link;
             }
@@ -392,25 +524,43 @@ async function loadLogoImage(value) {
             }
         }
 
-        // 通过 URL 加载
-        if (url) {
-            const resp = await fetch(url);
-            if (resp.ok) {
-                const buf = Buffer.from(await resp.arrayBuffer());
-                if (buf.length > 0) return buf;
+        // 优先通过飞书 file_token 下载（更稳定）
+        if (fileToken) {
+            try {
+                const { getTenantToken } = require('./feishu-api');
+                const token = await getTenantToken();
+                const resp = await fetch(`https://open.feishu.cn/open-apis/drive/v1/medias/${fileToken}/download`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (resp.ok) {
+                    const buf = Buffer.from(await resp.arrayBuffer());
+                    if (buf.length > 500) {
+                        console.log(`[PDF] file_token下载成功: ${fileToken.substring(0, 20)}... (${buf.length} bytes)`);
+                        return buf;
+                    }
+                } else {
+                    console.warn(`[PDF] file_token下载失败: HTTP ${resp.status}`);
+                }
+            } catch (e) {
+                console.warn(`[PDF] file_token下载异常: ${e.message}`);
             }
         }
 
-        // 通过飞书 file_token 下载
-        if (fileToken) {
-            const { getTenantToken } = require('./feishu-api');
-            const token = await getTenantToken();
-            const resp = await fetch(`https://open.feishu.cn/open-apis/drive/v1/medias/${fileToken}/download`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (resp.ok) {
-                const buf = Buffer.from(await resp.arrayBuffer());
-                if (buf.length > 0) return buf;
+        // 通过 URL 加载（作为降级方案）
+        if (url && !fileToken) {
+            try {
+                const resp = await fetch(url);
+                if (resp.ok) {
+                    const buf = Buffer.from(await resp.arrayBuffer());
+                    if (buf.length > 500) {
+                        console.log(`[PDF] URL下载成功: ${url.substring(0, 40)}... (${buf.length} bytes)`);
+                        return buf;
+                    }
+                } else {
+                    console.warn(`[PDF] URL下载失败: HTTP ${resp.status}`);
+                }
+            } catch (e) {
+                console.warn(`[PDF] URL下载异常: ${e.message}`);
             }
         }
     } catch (e) {
@@ -421,59 +571,224 @@ async function loadLogoImage(value) {
 
 /**
  * 从图标表（ICON_TABLE_ID）根据公司名称获取 logo
- * 这是兜底方案：当报价单表中的 logo 字段无法直接加载时，
- * 通过公司名在图标表中查找对应的 logo
+ * 通过飞书API查询图标表记录，从附件字段中获取标准file_token下载图片
+ *
+ * 匹配策略：
+ * 1. 使用 LOGO_MAP 的关键词进行精确+包含匹配（确保100%识别率）
+ * 2. 遍历所有字段查找包含附件（file_token）的字段
+ * 3. 不依赖特定字段名，更健壮
+ *
  * @param {string} companyName 保险公司名称
  * @returns {Promise<Buffer|null>}
  */
 async function fetchLogoFromIconTable(companyName) {
     if (!ICON_TABLE_ID || !companyName) {
-        console.warn(`[PDF] ICON_TABLE_ID=${ICON_TABLE_ID}, companyName=${companyName}`);
+        console.warn(`[PDF] 图标表查询跳过: ICON_TABLE_ID="${ICON_TABLE_ID}", companyName="${companyName}"`);
         return null;
     }
+    if (!BASE_TOKEN) {
+        console.warn('[PDF] 图标表查询跳过: BASE_TOKEN 未设置');
+        return null;
+    }
+
     try {
         const { searchRecords } = require('./feishu-api');
+        console.log(`[PDF] 查询图标表: BASE_TOKEN=${BASE_TOKEN?.substring(0, 10)}..., TABLE=${ICON_TABLE_ID}`);
         const records = await searchRecords(BASE_TOKEN, ICON_TABLE_ID);
         console.log(`[PDF] 图标表共 ${records.length} 条记录`);
-        
-        // 打印所有记录的字段结构，便于调试
-        if (records.length > 0) {
-            const sample = records[0].fields;
-            console.log(`[PDF] 图标表字段名: ${Object.keys(sample).join(', ')}`);
-            console.log(`[PDF] 第一条记录样例:`, JSON.stringify(sample, null, 2).substring(0, 500));
+
+        if (records.length === 0) {
+            console.warn('[PDF] 图标表为空，无记录');
+            return null;
         }
-        
+
+        // 打印字段结构（仅首次调试）
+        const sampleFields = records[0].fields || {};
+        console.log(`[PDF] 图标表字段名: ${Object.keys(sampleFields).join(', ')}`);
+
+        // 使用 LOGO_MAP 的关键词匹配公司名（与findLogoMapping一致）
+        const mapping = findLogoMapping(companyName);
+        if (!mapping) {
+            console.warn(`[PDF] 公司名 "${companyName}" 未匹配到LOGO_MAP关键词，跳过图标表查询`);
+            return null;
+        }
+
+        // 遍历图标表记录，查找匹配的公司
         for (const record of records) {
             const fields = record.fields || {};
-            // 尝试多种字段名匹配公司名
-            const name = fields['公司名称'] || fields['名称'] || fields['公司'] || '';
-            console.log(`[PDF] 图标表记录: name="${name}"`);
-            
-            // 匹配：用公司名的前4个字符做模糊匹配
-            const searchKey = companyName.substring(0, 4);
-            if (name && name.includes(searchKey)) {
-                // 尝试多种logo字段名
-                const logoField = fields['公司Logo'] || fields['logo'] || fields['Logo'] || fields['公司logo'] || '';
-                console.log(`[PDF] 匹配到 ${name}, logo字段值:`, typeof logoField === 'object' ? JSON.stringify(logoField).substring(0, 200) : String(logoField).substring(0, 200));
-                
-                if (logoField) {
-                    const buf = await loadLogoImage(logoField);
-                    if (buf) {
-                        console.log(`[PDF] 成功加载 ${companyName} 的logo, 大小: ${buf.length} bytes`);
+
+            // 遍历所有字段，查找文本类字段中包含公司关键词的记录
+            let matched = false;
+            let matchedFieldName = '';
+            for (const [fieldName, fieldValue] of Object.entries(fields)) {
+                // 跳过附件字段（含file_token的数组）
+                if (Array.isArray(fieldValue) && fieldValue.length > 0 && fieldValue[0]?.file_token) {
+                    continue;
+                }
+                // 规范化字段值为字符串
+                const textValue = normalizeFieldValueToString(fieldValue);
+                if (!textValue) continue;
+
+                // 用LOGO_MAP的关键词匹配
+                for (const keyword of mapping.keywords) {
+                    if (textValue.includes(keyword)) {
+                        matched = true;
+                        matchedFieldName = fieldName;
+                        console.log(`[PDF] 图标表匹配: 字段"${fieldName}"="${textValue}" 包含关键词"${keyword}" → ${mapping.name}`);
+                        break;
+                    }
+                }
+                if (matched) break;
+            }
+
+            if (!matched) continue;
+
+            // 找到匹配记录后，遍历所有字段查找附件（file_token）
+            for (const [fieldName, fieldValue] of Object.entries(fields)) {
+                if (!Array.isArray(fieldValue) || fieldValue.length === 0) continue;
+                const first = fieldValue[0];
+                if (first && first.file_token) {
+                    console.log(`[PDF] 找到附件字段"${fieldName}": file_token=${first.file_token.substring(0, 20)}..., name=${first.name || '?'}`);
+                    const buf = await loadLogoImage(fieldValue);
+                    if (buf && buf.length > 500) {
+                        console.log(`[PDF] ✅ 从图标表加载logo成功: ${mapping.name} (${buf.length} bytes)`);
+
+                        // 缓存到本地
+                        try {
+                            const logosDir = path.join(__dirname, 'logos');
+                            if (!fs.existsSync(logosDir)) fs.mkdirSync(logosDir, { recursive: true });
+                            fs.writeFileSync(path.join(logosDir, mapping.file), buf);
+                            console.log(`[PDF] logo已缓存到本地: ${mapping.file}`);
+                        } catch (e) {
+                            console.warn(`[PDF] logo缓存失败: ${e.message}`);
+                        }
                         return buf;
                     } else {
-                        console.warn(`[PDF] logo字段存在但加载失败`);
+                        console.warn(`[PDF] 附件字段"${fieldName}"加载失败`);
                     }
-                } else {
-                    console.warn(`[PDF] 匹配到记录但无logo字段`);
                 }
             }
+            console.warn(`[PDF] 匹配到记录(${matchedFieldName})但未找到附件字段`);
         }
-        console.warn(`[PDF] 图标表中未找到 ${companyName} 的logo (搜索key=${searchKey})`);
+
+        console.warn(`[PDF] 图标表中未找到 "${companyName}" (匹配:${mapping.name}) 的logo`);
     } catch (e) {
         console.warn(`[PDF] 从图标表加载logo失败: ${e.message}`);
     }
     return null;
+}
+
+/**
+ * 将飞书字段值规范化为字符串（用于公司名匹配）
+ * @param {*} value 飞书字段值
+ * @returns {string}
+ */
+function normalizeFieldValueToString(value) {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number') return String(value);
+    if (Array.isArray(value)) {
+        // 飞书文本字段返回 [{text: "xxx"}]
+        return value.map(v => {
+            if (typeof v === 'string') return v;
+            if (v && typeof v === 'object') return v.text || v.value || v.name || '';
+            return '';
+        }).join('');
+    }
+    if (typeof value === 'object') {
+        return value.text || value.value || value.name || '';
+    }
+    return '';
+}
+
+// ============================================================
+// Logo 渲染工具函数
+// ============================================================
+
+/**
+ * 在PDF页眉绘制logo（保险公司logo + 品牌logo）
+ * 确保尺寸适配、保持比例、位置统一
+ * @param {PDFDocument} doc PDF文档实例
+ * @param {object} opts 配置选项
+ * @returns {object} { nextY: number } 下一个可用的Y坐标
+ */
+function drawLogos(doc, opts) {
+    const {
+        y,
+        companyName,
+        companyLogoBuf,
+        brandName,
+        brandLogoBuf,
+        colors,
+        useFont,
+        setFontSize,
+        getDisplayName,
+        pageMarginLeft,
+        pageMarginRight,
+        pageWidth,
+    } = opts;
+
+    const contentWidth = pageWidth - pageMarginLeft - pageMarginRight;
+    const logoH = 32;
+    const logoGap = 24;
+    let currentX = pageMarginLeft;
+    let maxY = y + logoH;
+
+    // 辅助函数：绘制单个logo（图片或文字降级）
+    function drawSingleLogo(name, logoBuf, x) {
+        const displayName = getDisplayName(name);
+        const maxLogoWidth = 160;
+        
+        if (logoBuf && logoBuf.length > 100) {
+            try {
+                // 计算图片尺寸比例，保持原始比例
+                doc.save();
+                doc.image(logoBuf, x, y, { 
+                    height: logoH, 
+                    fit: [maxLogoWidth, logoH],
+                    align: 'left'
+                });
+                // 估算实际渲染宽度（基于160:32的最大比例）
+                const estimatedWidth = Math.min(maxLogoWidth, logoH * 5);
+                doc.restore();
+                console.log(`[PDF] 渲染logo图片: ${displayName} (${estimatedWidth}px宽)`);
+                return { width: estimatedWidth, height: logoH };
+            } catch (e) {
+                console.warn(`[PDF] 渲染logo图片失败: ${e.message}，使用文字降级`);
+                return drawAsText(displayName, x);
+            }
+        } else {
+            return drawAsText(displayName, x);
+        }
+    }
+
+    // 辅助函数：文字降级显示
+    function drawAsText(displayName, x) {
+        doc.save();
+        useFont();
+        doc.fillColor(colors.primary);
+        setFontSize(13);
+        const textY = y + (logoH - 16) / 2;
+        const textWidth = doc.widthOfString(displayName) + 8;
+        doc.text(displayName, x, textY);
+        doc.restore();
+        console.log(`[PDF] 渲染文字logo: ${displayName} (${textWidth}px宽)`);
+        return { width: textWidth, height: logoH };
+    }
+
+    // 绘制保险公司logo
+    const insLogo = drawSingleLogo(companyName || '未知公司', companyLogoBuf, currentX);
+    currentX += insLogo.width + logoGap;
+    maxY = Math.max(maxY, y + insLogo.height);
+
+    // 绘制品牌logo（问界）
+    const brandLogo = drawSingleLogo(brandName, brandLogoBuf, currentX);
+    currentX += brandLogo.width;
+    maxY = Math.max(maxY, y + brandLogo.height);
+
+    console.log(`[PDF] Logo渲染完成: 保险公司=${companyName || '未知'}, 品牌=${brandName}`);
+    
+    return { nextY: maxY };
 }
 
 // ============================================================
@@ -492,34 +807,99 @@ function generatePdf(detail) {
         const get = (k) => (d[k] !== undefined && d[k] !== null && d[k] !== '') ? d[k] : '—';
         const fm = (k) => formatMoney(d[k]);
 
-        // 预加载 logo 图片（优先级：本地logos目录 > 环境变量URL > 字段值 > 图标表）
-        let insuranceLogoBuf = loadLogoByCompanyName(d['保险公司']);
-        if (!insuranceLogoBuf && INSURANCE_LOGO_URL) {
-            console.log('[PDF] 从环境变量URL加载保险公司logo...');
-            insuranceLogoBuf = await loadLogoImage(INSURANCE_LOGO_URL);
+        // ============================================================
+        // Logo 加载策略（按优先级依次尝试）
+        // 1. 本地 logos/ 目录（按公司名关键词匹配）
+        // 2. 环境变量 URL（INSURANCE_LOGO_URL / CAR_BRAND_LOGO_URL）
+        // 3. 多个环境变量 URL 列表（INSURANCE_LOGO_URLS / CAR_BRAND_LOGO_URLS）
+        // 4. 飞书字段值（图标-公司logo / 图标-品牌logo）
+        // 5. 图标表兜底查询
+        // ============================================================
+        
+        // 从多个URL尝试加载logo
+        async function tryLoadFromUrls(urlsStr) {
+            if (!urlsStr) return null;
+            const urls = urlsStr.split(',').map(u => u.trim()).filter(u => u);
+            for (const url of urls) {
+                try {
+                    console.log(`[PDF] 尝试URL加载logo: ${url.substring(0, 60)}...`);
+                    const buf = await loadLogoImage(url);
+                    if (buf && buf.length > 500) {
+                        console.log(`[PDF] URL加载成功: ${url.substring(0, 40)}... (${buf.length} bytes)`);
+                        return buf;
+                    }
+                } catch (e) {
+                    console.warn(`[PDF] URL加载失败: ${e.message}`);
+                }
+            }
+            return null;
         }
+
+        // 加载保险公司logo
+        console.log(`[PDF] 开始加载保险公司logo，公司名: "${d['保险公司']}"`);
+        let insuranceLogoBuf = null;
+        
+        // 策略1: 本地logos目录（按关键词匹配，同步快速）
+        insuranceLogoBuf = loadLogoByCompanyName(d['保险公司']);
+        
+        // 策略2: 图标表查询（通过飞书API获取标准file_token下载，最可靠）
         if (!insuranceLogoBuf) {
-            insuranceLogoBuf = await loadLogoImage(d['保险公司logo']);
-        }
-        if (!insuranceLogoBuf) {
-            console.log('[PDF] 尝试从图标表获取保险公司logo...');
+            console.log('[PDF] 本地无logo，查询图标表...');
             insuranceLogoBuf = await fetchLogoFromIconTable(d['保险公司']);
         }
+        
+        // 策略3: 环境变量 URL（单个）
+        if (!insuranceLogoBuf && INSURANCE_LOGO_URL) {
+            console.log('[PDF] 尝试环境变量 INSURANCE_LOGO_URL...');
+            insuranceLogoBuf = await loadLogoImage(INSURANCE_LOGO_URL);
+        }
+        
+        // 策略4: 环境变量 URL 列表（逗号分隔多个URL）
+        if (!insuranceLogoBuf) {
+            const insuranceUrls = process.env.INSURANCE_LOGO_URLS || '';
+            insuranceLogoBuf = await tryLoadFromUrls(insuranceUrls);
+        }
+        
+        // 策略5: 飞书字段值（报价单表中的logo字段）
+        if (!insuranceLogoBuf) {
+            console.log('[PDF] 尝试飞书字段值...');
+            insuranceLogoBuf = await loadLogoImage(d['保险公司logo']);
+        }
 
-        let carBrandLogoBuf = loadLogoByCompanyName('问界');
-        if (!carBrandLogoBuf && CAR_BRAND_LOGO_URL) {
-            console.log('[PDF] 从环境变量URL加载品牌logo...');
-            carBrandLogoBuf = await loadLogoImage(CAR_BRAND_LOGO_URL);
-        }
+        // 加载品牌logo（问界）
+        console.log('[PDF] 开始加载品牌logo: 问界');
+        let carBrandLogoBuf = null;
+        
+        // 策略1: 本地logos目录（同步快速）
+        carBrandLogoBuf = loadLogoByCompanyName('问界');
+        
+        // 策略2: 图标表查询（最可靠）
         if (!carBrandLogoBuf) {
-            carBrandLogoBuf = await loadLogoImage(d['问界logo']);
-        }
-        if (!carBrandLogoBuf) {
-            console.log('[PDF] 尝试从图标表获取品牌logo...');
+            console.log('[PDF] 本地无品牌logo，查询图标表...');
             carBrandLogoBuf = await fetchLogoFromIconTable('问界');
         }
+        
+        // 策略3: 环境变量 URL
+        if (!carBrandLogoBuf && CAR_BRAND_LOGO_URL) {
+            console.log('[PDF] 尝试环境变量 CAR_BRAND_LOGO_URL...');
+            carBrandLogoBuf = await loadLogoImage(CAR_BRAND_LOGO_URL);
+        }
+        
+        // 策略4: 环境变量 URL 列表
+        if (!carBrandLogoBuf) {
+            const brandUrls = process.env.CAR_BRAND_LOGO_URLS || '';
+            carBrandLogoBuf = await tryLoadFromUrls(brandUrls);
+        }
+        
+        // 策略5: 飞书字段值
+        if (!carBrandLogoBuf) {
+            console.log('[PDF] 尝试飞书字段值...');
+            carBrandLogoBuf = await loadLogoImage(d['问界logo']);
+        }
 
-        console.log(`[PDF] logo加载结果: insurance=${insuranceLogoBuf ? 'OK(' + insuranceLogoBuf.length + 'bytes)' : 'FAIL'}, carBrand=${carBrandLogoBuf ? 'OK(' + carBrandLogoBuf.length + 'bytes)' : 'FAIL'}`);
+        const insStatus = insuranceLogoBuf ? `OK(${insuranceLogoBuf.length}bytes)` : 'FAIL(将使用文字显示)';
+        const brandStatus = carBrandLogoBuf ? `OK(${carBrandLogoBuf.length}bytes)` : 'FAIL(将使用文字显示)';
+        console.log(`[PDF] Logo加载最终结果: 保险公司=${insStatus}, 品牌=${brandStatus}`);
 
         return new Promise((resolve, reject) => {
             const doc = new PDFDocument({
@@ -708,47 +1088,22 @@ function generatePdf(detail) {
         y += 10;
 
         // 绘制 logo（左上角并排：保险公司logo + 问界logo）
-        const logoY = y;
-        const logoH = 32;
-        const logoGap = 20;
-        let logoX = doc.page.margins.left;
-
-        // 保险公司 logo
-        try {
-            if (insuranceLogoBuf) {
-                doc.image(insuranceLogoBuf, logoX, logoY, { height: logoH, fit: [140, logoH] });
-                const insLogoWidth = doc.widthOfString(get('保险公司')) > 0 ? 140 : 80;
-                logoX += 140 + logoGap;
-            } else {
-                doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(11);
-                const insTextWidth = doc.widthOfString(get('保险公司')) + 10;
-                doc.text(get('保险公司'), logoX, logoY + 6, { width: insTextWidth });
-                doc.restore();
-                logoX += insTextWidth + logoGap;
-            }
-        } catch (e) {
-            doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(11);
-            const insTextWidth = doc.widthOfString(get('保险公司')) + 10;
-            doc.text(get('保险公司'), logoX, logoY + 6, { width: insTextWidth });
-            doc.restore();
-            logoX += insTextWidth + logoGap;
-        }
-
-        // 问界 logo
-        try {
-            if (carBrandLogoBuf) {
-                doc.image(carBrandLogoBuf, logoX, logoY, { height: logoH, fit: [120, logoH] });
-            } else {
-                doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(12);
-                doc.text('问界', logoX, logoY + 6);
-                doc.restore();
-            }
-        } catch (e) {
-            doc.save(); useFont(); doc.fillColor(COLORS.primary); doc.fontSize(12);
-            doc.text('问界', logoX, logoY + 6);
-            doc.restore();
-        }
-        y += logoH + 10;
+        // 使用统一的logo渲染函数，确保尺寸适配、比例正确、位置统一
+        const logoResult = drawLogos(doc, {
+            y: y,
+            companyName: d['保险公司'],
+            companyLogoBuf: insuranceLogoBuf,
+            brandName: '问界',
+            brandLogoBuf: carBrandLogoBuf,
+            colors: COLORS,
+            useFont: useFont,
+            setFontSize: setFontSize,
+            getDisplayName: getLogoDisplayName,
+            pageMarginLeft: doc.page.margins.left,
+            pageMarginRight: doc.page.margins.right,
+            pageWidth: doc.page.width,
+        });
+        y = logoResult.nextY + 10;
 
         // 主标题
         doc.save();
@@ -1146,6 +1501,53 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // GET /debug/icon-table — 图标表结构诊断（查看图标表记录和字段结构）
+    if (req.method === 'GET' && url.pathname === '/debug/icon-table') {
+        (async () => {
+            if (!BASE_TOKEN || !ICON_TABLE_ID) {
+                sendJson(res, 400, { error: 'BASE_TOKEN或ICON_TABLE_ID未设置', BASE_TOKEN: !!BASE_TOKEN, ICON_TABLE_ID });
+                return;
+            }
+            try {
+                const { searchRecords } = require('./feishu-api');
+                const records = await searchRecords(BASE_TOKEN, ICON_TABLE_ID);
+                
+                const result = {
+                    iconTableId: ICON_TABLE_ID,
+                    baseToken: BASE_TOKEN ? BASE_TOKEN.substring(0, 10) + '...' : null,
+                    totalRecords: records.length,
+                    records: records.map(r => {
+                        const fields = r.fields || {};
+                        const fieldInfo = {};
+                        for (const [key, val] of Object.entries(fields)) {
+                            if (Array.isArray(val) && val.length > 0 && val[0]?.file_token) {
+                                // 附件字段
+                                fieldInfo[key] = {
+                                    type: 'attachment',
+                                    fileToken: val[0].file_token,
+                                    fileName: val[0].name,
+                                    fileSize: val[0].size,
+                                    fileType: val[0].type,
+                                };
+                            } else {
+                                // 文本字段
+                                fieldInfo[key] = {
+                                    type: 'text',
+                                    value: normalizeFieldValueToString(val),
+                                };
+                            }
+                        }
+                        return { recordId: r.record_id, fields: fieldInfo };
+                    }),
+                };
+                sendJson(res, 200, result);
+            } catch (e) {
+                sendJson(res, 500, { error: e.message });
+            }
+        })().catch(e => sendJson(res, 500, { error: e.message }));
+        return;
+    }
+
     // GET /debug/font — 字体调试
     if (req.method === 'GET' && url.pathname === '/debug/font') {
         const fontDebug = {
@@ -1182,6 +1584,136 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // GET /debug/logos — Logo 诊断端点
+    if (req.method === 'GET' && url.pathname === '/debug/logos') {
+        const logosDebug = {
+            // Logo映射表信息
+            logoMapping: LOGO_MAP.map(m => ({
+                name: m.name,
+                file: m.file,
+                fileToken: m.fileToken || null,
+                fileTokenPrefix: m.fileToken ? m.fileToken.substring(0, 15) + '...' : null,
+                keywords: m.keywords,
+                localFileExists: (() => {
+                    const p = path.join(__dirname, 'logos', m.file);
+                    return fs.existsSync(p);
+                })(),
+            })),
+            // 环境变量配置
+            envConfig: {
+                INSURANCE_LOGO_URL: INSURANCE_LOGO_URL || '(未设置)',
+                CAR_BRAND_LOGO_URL: CAR_BRAND_LOGO_URL || '(未设置)',
+                INSURANCE_LOGO_URLS: process.env.INSURANCE_LOGO_URLS || '(未设置)',
+                CAR_BRAND_LOGO_URLS: process.env.CAR_BRAND_LOGO_URLS || '(未设置)',
+                ICON_TABLE_ID: ICON_TABLE_ID || '(未设置)',
+                FEISHU_APP_ID: process.env.FEISHU_APP_ID ? '已设置' : '(未设置)',
+                FEISHU_APP_SECRET: process.env.FEISHU_APP_SECRET ? '已设置' : '(未设置)',
+            },
+            // Logos目录内容
+            logosDir: {
+                path: path.join(__dirname, 'logos'),
+                exists: fs.existsSync(path.join(__dirname, 'logos')),
+                files: (() => {
+                    const dir = path.join(__dirname, 'logos');
+                    if (!fs.existsSync(dir)) return [];
+                    return fs.readdirSync(dir)
+                        .filter(f => f !== 'README.md')
+                        .map(f => {
+                            const fp = path.join(dir, f);
+                            const stat = fs.statSync(fp);
+                            return { name: f, size: stat.size };
+                        });
+                })(),
+            },
+            // 测试匹配
+            testMatches: [
+                { test: '中国平安财产保险股份有限公司', match: getLogoDisplayName('中国平安财产保险股份有限公司') },
+                { test: '中国人寿财产保险股份有限公司', match: getLogoDisplayName('中国人寿财产保险股份有限公司') },
+                { test: '中国太平洋财产保险股份有限公司', match: getLogoDisplayName('中国太平洋财产保险股份有限公司') },
+                { test: '中国人民财产保险股份有限公司', match: getLogoDisplayName('中国人民财产保险股份有限公司') },
+                { test: '太平财产保险有限公司', match: getLogoDisplayName('太平财产保险有限公司') },
+                { test: '中华联合财产保险股份有限公司', match: getLogoDisplayName('中华联合财产保险股份有限公司') },
+                { test: '问界AITO', match: getLogoDisplayName('问界AITO') },
+                { test: '鸿蒙HarmonyOS', match: getLogoDisplayName('鸿蒙HarmonyOS') },
+                { test: '平安产险', match: getLogoDisplayName('平安产险') },
+                { test: '人保', match: getLogoDisplayName('人保') },
+                { test: '太保', match: getLogoDisplayName('太保') },
+            ],
+            // 功能说明
+            features: {
+                localFileSupport: '✅ 本地logos目录自动加载',
+                iconTableSupport: '✅ 飞书图标表查询自动下载（主要方式）',
+                autoCache: '✅ 下载后自动缓存到本地',
+                textFallback: '✅ 加载失败降级为文字显示',
+            },
+            // 建议
+            suggestions: [
+                `1. 系统已配置图标表ID: ${ICON_TABLE_ID}，会自动查询图标表下载logo`,
+                '2. 确保FEISHU_APP_ID、FEISHU_APP_SECRET、BASE_TOKEN已配置',
+                '3. 确保飞书应用有bitable:app:readonly和drive:drive:readonly权限',
+                '4. 确保应用已被添加为多维表格的协作者',
+                '5. 访问 /debug/icon-table 查看图标表结构和字段',
+                '6. 下载的logo会自动缓存到logos/目录，后续无需重复下载',
+            ],
+        };
+        sendJson(res, 200, logosDebug);
+        return;
+    }
+
+    // GET /debug/logos/test — 测试图标表logo下载
+    if (req.method === 'GET' && url.pathname === '/debug/logos/test') {
+        (async () => {
+            const testCompanies = ['中国平安', '中国人寿', '中国太平洋', '中国人保', '太平保险', '中华联合', '问界'];
+            const results = [];
+            
+            for (const company of testCompanies) {
+                console.log(`[Logo测试] 测试 ${company}`);
+                let result = {
+                    company,
+                    mapping: findLogoMapping(company)?.name || null,
+                    success: false,
+                    bufferSize: 0,
+                    error: null,
+                };
+                
+                try {
+                    // 先查本地
+                    const localBuf = loadLogoByCompanyName(company);
+                    if (localBuf) {
+                        result.success = true;
+                        result.bufferSize = localBuf.length;
+                        result.source = 'local';
+                    } else {
+                        // 查图标表
+                        const remoteBuf = await fetchLogoFromIconTable(company);
+                        if (remoteBuf) {
+                            result.success = true;
+                            result.bufferSize = remoteBuf.length;
+                            result.source = 'icon-table';
+                        } else {
+                            result.error = '本地和图标表均无logo';
+                        }
+                    }
+                } catch (e) {
+                    result.error = e.message;
+                }
+                
+                results.push(result);
+            }
+            
+            const successCount = results.filter(r => r.success).length;
+            sendJson(res, 200, {
+                total: results.length,
+                successCount,
+                failCount: results.length - successCount,
+                results,
+            });
+        })().catch(e => {
+            sendJson(res, 500, { error: e.message });
+        });
+        return;
+    }
+
     // 静态文件服务
     serveStatic(req, res);
 });
@@ -1201,9 +1733,19 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('    GET /api/records                 获取记录列表');
     console.log('    GET /api/record?record_id=xxx    获取单条记录');
     console.log('    GET /health                      健康检查');
+    console.log('    GET /debug/font                  字体诊断');
+    console.log('    GET /debug/logos                 Logo诊断');
+    console.log('    GET /debug/logos/test            Logo下载测试');
+    console.log('    GET /debug/icon-table            图标表结构诊断');
     console.log();
     console.log('  飞书表格按钮字段 URL 配置:');
     console.log(`    ${process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`}/api/generate?record_id={{记录ID}}`);
+    console.log();
+    console.log('  Logo 配置:');
+    console.log(`    本地logo目录: ${path.join(__dirname, 'logos')}`);
+    console.log(`    图标表ID: ${ICON_TABLE_ID}`);
+    console.log(`    保险公司logo URL: ${INSURANCE_LOGO_URL || '(未设置)'}`);
+    console.log(`    品牌logo URL: ${CAR_BRAND_LOGO_URL || '(未设置)'}`);
     console.log();
     console.log(banner);
     console.log();
