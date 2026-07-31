@@ -814,18 +814,23 @@ function drawLogos(doc, opts) {
         
         if (logoBuf && logoBuf.length > 100) {
             try {
-                // 计算图片尺寸比例，保持原始比例
+                // 使用openImage获取原始尺寸，保持比例
+                const image = doc.openImage(logoBuf);
+                const aspectRatio = image.width / image.height;
+                const targetHeight = logoH;
+                let targetWidth = targetHeight * aspectRatio;
+                
+                // 如果宽度超过限制，则按宽度限制重新计算
+                if (targetWidth > maxLogoWidth) {
+                    targetWidth = maxLogoWidth;
+                    targetHeight = targetWidth / aspectRatio;
+                }
+                
                 doc.save();
-                doc.image(logoBuf, x, y, { 
-                    height: logoH, 
-                    fit: [maxLogoWidth, logoH],
-                    align: 'left'
-                });
-                // 估算实际渲染宽度（基于160:32的最大比例）
-                const estimatedWidth = Math.min(maxLogoWidth, logoH * 5);
+                doc.image(image, x, y, { height: targetHeight });
                 doc.restore();
-                console.log(`[PDF] 渲染logo图片: ${displayName} (${estimatedWidth}px宽)`);
-                return { width: estimatedWidth, height: logoH };
+                console.log(`[PDF] 渲染logo图片: ${displayName} (${targetWidth.toFixed(1)}px宽, ${targetHeight.toFixed(1)}px高)`);
+                return { width: targetWidth, height: targetHeight };
             } catch (e) {
                 console.warn(`[PDF] 渲染logo图片失败: ${e.message}，使用文字降级`);
                 return drawAsText(displayName, x);
@@ -869,43 +874,38 @@ function drawLogos(doc, opts) {
         const maxLogoWidth = 120;
         const safeLogoH = logoH || 32;
         const safeRightX = isNaN(rightX) ? (pageWidth - pageMarginRight) : rightX;
-        const estimatedWidth = Math.min(maxLogoWidth, safeLogoH * 4);
         
         console.log(`[PDF] drawBrandLogoRight: name=${name}, logoBuf=${logoBuf ? logoBuf.length + 'bytes' : 'null'}, rightX=${safeRightX}, logoH=${safeLogoH}`);
         
         if (logoBuf && logoBuf.length > 100) {
             try {
-                // 检查图片格式
-                const header = logoBuf.slice(0, 8).toString('hex');
-                const isPng = header.startsWith('89504e47');
-                const isJpg = header.startsWith('ffd8ff');
-                const isGif = header.startsWith('474946');
-                const isSvg = logoBuf.toString('utf8', 0, 100).includes('<svg');
-                console.log(`[PDF] 品牌logo格式: header=${header.substring(0,16)}, png=${isPng}, jpg=${isJpg}, gif=${isGif}, svg=${isSvg}`);
+                // 使用openImage获取原始尺寸
+                const image = doc.openImage(logoBuf);
+                console.log(`[PDF] 品牌logo原始尺寸: ${image.width}x${image.height}`);
                 
-                doc.save();
-                const drawX = safeRightX - estimatedWidth;
-                console.log(`[PDF] 绘制品牌logo: x=${drawX}, y=${y}, width=${estimatedWidth}, height=${safeLogoH}`);
+                // 计算保持比例的尺寸：高度固定，宽度按比例
+                const aspectRatio = image.width / image.height;
+                const targetHeight = safeLogoH;
+                let targetWidth = targetHeight * aspectRatio;
                 
-                // 尝试使用openImage预加载
-                try {
-                    const image = doc.openImage(logoBuf);
-                    console.log(`[PDF] openImage成功: width=${image.width}, height=${image.height}`);
-                    doc.image(image, drawX, y, { 
-                        width: estimatedWidth,
-                        height: safeLogoH
-                    });
-                } catch (openErr) {
-                    console.warn(`[PDF] openImage失败: ${openErr.message}，尝试直接传buffer`);
-                    doc.image(logoBuf, drawX, y, { 
-                        width: estimatedWidth,
-                        height: safeLogoH
-                    });
+                // 如果宽度超过限制，则按宽度限制重新计算
+                if (targetWidth > maxLogoWidth) {
+                    targetWidth = maxLogoWidth;
+                    targetHeight = targetWidth / aspectRatio;
                 }
                 
+                console.log(`[PDF] 品牌logo目标尺寸: ${targetWidth.toFixed(1)}x${targetHeight.toFixed(1)} (比例: ${aspectRatio.toFixed(2)})`);
+                
+                doc.save();
+                const drawX = safeRightX - targetWidth;
+                console.log(`[PDF] 绘制品牌logo: x=${drawX.toFixed(1)}, y=${y}, width=${targetWidth.toFixed(1)}, height=${targetHeight.toFixed(1)}`);
+                
+                // 只传height，让pdfkit自动按比例计算width
+                doc.image(image, drawX, y, { height: targetHeight });
+                
                 doc.restore();
-                console.log(`[PDF] ✅ 渲染右上角logo图片: ${displayName} (${estimatedWidth}px宽)`);
-                return { width: estimatedWidth, height: safeLogoH };
+                console.log(`[PDF] ✅ 渲染右上角logo图片: ${displayName} (${targetWidth.toFixed(1)}px宽, ${targetHeight.toFixed(1)}px高)`);
+                return { width: targetWidth, height: targetHeight };
             } catch (e) {
                 console.warn(`[PDF] 渲染右上角logo图片失败: ${e.message}，使用文字降级`);
                 return drawBrandTextRight(displayName, safeRightX);
