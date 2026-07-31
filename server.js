@@ -868,67 +868,64 @@ function generatePdf(detail) {
             return null;
         }
 
-        // 加载保险公司logo
-        console.log(`[PDF] 开始加载保险公司logo，公司名: "${d['保险公司']}"`);
-        let insuranceLogoBuf = null;
-        
-        // 策略1: 本地logos目录（按关键词匹配，同步快速）
-        insuranceLogoBuf = loadLogoByCompanyName(d['保险公司']);
-        
-        // 策略2: 图标表查询（通过飞书API获取标准file_token下载，最可靠）
-        if (!insuranceLogoBuf) {
-            console.log('[PDF] 本地无logo，查询图标表...');
-            insuranceLogoBuf = await fetchLogoFromIconTable(d['保险公司']);
-        }
-        
-        // 策略3: 环境变量 URL（单个）
-        if (!insuranceLogoBuf && INSURANCE_LOGO_URL) {
-            console.log('[PDF] 尝试环境变量 INSURANCE_LOGO_URL...');
-            insuranceLogoBuf = await loadLogoImage(INSURANCE_LOGO_URL);
-        }
-        
-        // 策略4: 环境变量 URL 列表（逗号分隔多个URL）
-        if (!insuranceLogoBuf) {
-            const insuranceUrls = process.env.INSURANCE_LOGO_URLS || '';
-            insuranceLogoBuf = await tryLoadFromUrls(insuranceUrls);
-        }
-        
-        // 策略5: 飞书字段值（报价单表中的logo字段）
-        if (!insuranceLogoBuf) {
-            console.log('[PDF] 尝试飞书字段值...');
-            insuranceLogoBuf = await loadLogoImage(d['保险公司logo']);
-        }
+        // 先清理无效logo缓存（小于20字节的文件）
+        try {
+            const logosDir = path.join(__dirname, 'logos');
+            if (fs.existsSync(logosDir)) {
+                const files = fs.readdirSync(logosDir);
+                for (const file of files) {
+                    const fpath = path.join(logosDir, file);
+                    if (fs.statSync(fpath).size < 20) {
+                        console.log(`[PDF] 清理无效缓存: ${file}`);
+                        fs.unlinkSync(fpath);
+                    }
+                }
+            }
+        } catch (e) { /* ignore */ }
 
-        // 加载品牌logo（问界）
-        console.log('[PDF] 开始加载品牌logo: 问界');
-        let carBrandLogoBuf = null;
+        // 并行加载两个logo，提高效率
+        console.log(`[PDF] 开始并行加载logo: 保险公司="${d['保险公司']}", 品牌="问界"`);
         
-        // 策略1: 本地logos目录（同步快速）
-        carBrandLogoBuf = loadLogoByCompanyName('问界');
-        
-        // 策略2: 图标表查询（最可靠）
-        if (!carBrandLogoBuf) {
-            console.log('[PDF] 本地无品牌logo，查询图标表...');
-            carBrandLogoBuf = await fetchLogoFromIconTable('问界');
-        }
-        
-        // 策略3: 环境变量 URL
-        if (!carBrandLogoBuf && CAR_BRAND_LOGO_URL) {
-            console.log('[PDF] 尝试环境变量 CAR_BRAND_LOGO_URL...');
-            carBrandLogoBuf = await loadLogoImage(CAR_BRAND_LOGO_URL);
-        }
-        
-        // 策略4: 环境变量 URL 列表
-        if (!carBrandLogoBuf) {
-            const brandUrls = process.env.CAR_BRAND_LOGO_URLS || '';
-            carBrandLogoBuf = await tryLoadFromUrls(brandUrls);
-        }
-        
-        // 策略5: 飞书字段值
-        if (!carBrandLogoBuf) {
-            console.log('[PDF] 尝试飞书字段值...');
-            carBrandLogoBuf = await loadLogoImage(d['问界logo']);
-        }
+        const [insuranceLogoBuf, carBrandLogoBuf] = await Promise.all([
+            // 加载保险公司logo
+            (async () => {
+                let buf = null;
+                // 策略1: 本地
+                buf = loadLogoByCompanyName(d['保险公司']);
+                // 策略2: 图标表
+                if (!buf) buf = await fetchLogoFromIconTable(d['保险公司']);
+                // 策略3: 环境变量
+                if (!buf && INSURANCE_LOGO_URL) buf = await loadLogoImage(INSURANCE_LOGO_URL);
+                // 策略4: URL列表
+                if (!buf) {
+                    const urls = process.env.INSURANCE_LOGO_URLS || '';
+                    buf = await tryLoadFromUrls(urls);
+                }
+                // 策略5: 飞书字段
+                if (!buf) buf = await loadLogoImage(d['保险公司logo']);
+                console.log(`[PDF] 保险公司logo加载完成: ${buf ? buf.length + ' bytes' : '失败'}`);
+                return buf;
+            })(),
+            // 加载品牌logo
+            (async () => {
+                let buf = null;
+                // 策略1: 本地
+                buf = loadLogoByCompanyName('问界');
+                // 策略2: 图标表
+                if (!buf) buf = await fetchLogoFromIconTable('问界');
+                // 策略3: 环境变量
+                if (!buf && CAR_BRAND_LOGO_URL) buf = await loadLogoImage(CAR_BRAND_LOGO_URL);
+                // 策略4: URL列表
+                if (!buf) {
+                    const urls = process.env.CAR_BRAND_LOGO_URLS || '';
+                    buf = await tryLoadFromUrls(urls);
+                }
+                // 策略5: 飞书字段
+                if (!buf) buf = await loadLogoImage(d['问界logo']);
+                console.log(`[PDF] 品牌logo加载完成: ${buf ? buf.length + ' bytes' : '失败'}`);
+                return buf;
+            })(),
+        ]);
 
         const insStatus = insuranceLogoBuf ? `OK(${insuranceLogoBuf.length}bytes)` : 'FAIL(将使用文字显示)';
         const brandStatus = carBrandLogoBuf ? `OK(${carBrandLogoBuf.length}bytes)` : 'FAIL(将使用文字显示)';
