@@ -989,17 +989,30 @@ function generatePdf(detail) {
                 let buf = null;
                 // 策略1: 本地
                 buf = loadLogoByCompanyName('问界');
+                console.log(`[PDF] 品牌策略1(本地): ${buf ? '成功 ' + buf.length + 'bytes' : '失败'}`);
                 // 策略2: 图标表
-                if (!buf) buf = await fetchLogoFromIconTable('问界');
+                if (!buf) {
+                    console.log(`[PDF] 品牌策略2(图标表): 开始查询...`);
+                    buf = await fetchLogoFromIconTable('问界');
+                    console.log(`[PDF] 品牌策略2(图标表): ${buf ? '成功 ' + buf.length + 'bytes' : '失败'}`);
+                }
                 // 策略3: 环境变量
-                if (!buf && CAR_BRAND_LOGO_URL) buf = await loadLogoImage(CAR_BRAND_LOGO_URL);
+                if (!buf && CAR_BRAND_LOGO_URL) {
+                    console.log(`[PDF] 品牌策略3(环境变量): ${CAR_BRAND_LOGO_URL}`);
+                    buf = await loadLogoImage(CAR_BRAND_LOGO_URL);
+                }
                 // 策略4: URL列表
                 if (!buf) {
                     const urls = process.env.CAR_BRAND_LOGO_URLS || '';
+                    if (urls) console.log(`[PDF] 品牌策略4(URL列表): ${urls}`);
                     buf = await tryLoadFromUrls(urls);
                 }
                 // 策略5: 飞书字段
-                if (!buf) buf = await loadLogoImage(d['问界logo']);
+                if (!buf) {
+                    const logoField = d['问界logo'];
+                    console.log(`[PDF] 品牌策略5(飞书字段): 字段值=${logoField ? (typeof logoField === 'string' ? logoField.substring(0,50) : JSON.stringify(logoField).substring(0,50)) : '空'}`);
+                    buf = await loadLogoImage(logoField);
+                }
                 console.log(`[PDF] 品牌logo加载完成: ${buf ? buf.length + ' bytes' : '失败'}`);
                 return buf;
             })(),
