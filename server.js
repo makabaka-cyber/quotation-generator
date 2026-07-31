@@ -153,9 +153,11 @@ function loadLogoByCompanyName(companyName) {
             const logoPath = path.join(logosDir, mapping.file.replace(/\.[^.]+$/, '') + ext);
             if (fs.existsSync(logoPath)) {
                 const buf = fs.readFileSync(logoPath);
-                if (buf.length > 100) {
+                if (buf.length >= 20) {
                     console.log(`[PDF] 本地logo加载成功: ${companyName} → ${mapping.file} (${buf.length} bytes)`);
                     return buf;
+                } else if (buf.length > 0) {
+                    console.warn(`[PDF] 本地logo文件太小（${buf.length} bytes），跳过: ${logoPath}`);
                 }
             }
         }
@@ -164,9 +166,11 @@ function loadLogoByCompanyName(companyName) {
         const originalPath = path.join(logosDir, mapping.file);
         if (fs.existsSync(originalPath)) {
             const buf = fs.readFileSync(originalPath);
-            if (buf.length > 100) {
+            if (buf.length >= 20) {
                 console.log(`[PDF] 本地logo加载成功: ${companyName} → ${mapping.file} (${buf.length} bytes)`);
                 return buf;
+            } else if (buf.length > 0) {
+                console.warn(`[PDF] 本地logo文件太小（${buf.length} bytes），跳过: ${originalPath}`);
             }
         }
         
@@ -532,38 +536,39 @@ async function loadLogoImage(value) {
                 const token = await getTenantToken();
 
                 // 多维表格附件需要extra参数指定tableId上下文
-                // extra格式: {"bitablePerm":{"tableId":"xxx","rev":0}}
-                const extraParams = [
-                    // 尝试1: 使用ICON_TABLE_ID
+                // 尝试多种extra组合，确保能下载成功
+                const tryExtras = [
+                    // 尝试1: 使用ICON_TABLE_ID（图标表）
                     ICON_TABLE_ID ? `{"bitablePerm":{"tableId":"${ICON_TABLE_ID}","rev":0}}` : null,
                     // 尝试2: 使用TABLE_ID（报价单表）
                     TABLE_ID ? `{"bitablePerm":{"tableId":"${TABLE_ID}","rev":0}}` : null,
-                    // 尝试3: 无extra（普通云文档）
+                    // 尝试3: 无extra（普通云文档/旧版API）
                     null,
-                ].filter(Boolean);
+                ];
 
-                for (let i = 0; i < extraParams.length; i++) {
-                    const extra = extraParams[i];
+                for (let i = 0; i < tryExtras.length; i++) {
+                    const extra = tryExtras[i];
+                    if (i > 0) console.log(`[PDF] 尝试下载 (方式${i+1}): extra=${extra ? extra.substring(0, 60) : 'none'}`);
                     try {
                         const downloadUrl = extra
                             ? `https://open.feishu.cn/open-apis/drive/v1/medias/${fileToken}/download?extra=${encodeURIComponent(extra)}`
                             : `https://open.feishu.cn/open-apis/drive/v1/medias/${fileToken}/download`;
-                        console.log(`[PDF] 尝试下载 (方式${i+1}): extra=${extra ? extra.substring(0, 50) : 'none'}`);
                         const resp = await fetch(downloadUrl, {
                             headers: { 'Authorization': `Bearer ${token}` }
                         });
-                        console.log(`[PDF] 下载响应: HTTP ${resp.status}`);
                         if (resp.ok) {
                             const buf = Buffer.from(await resp.arrayBuffer());
-                            if (buf.length > 100) {
-                                console.log(`[PDF] ✅ 下载成功: ${buf.length} bytes`);
+                            if (buf.length >= 20) {
+                                console.log(`[PDF] ✅ 下载成功 (方式${i+1}): ${buf.length} bytes`);
                                 return buf;
                             }
                         } else {
-                            try { const text = await resp.text(); console.log(`[PDF] 错误详情: ${text.substring(0, 200)}`); } catch(e) {}
+                            if (i === 0) {
+                                try { const text = await resp.text(); console.log(`[PDF] 下载错误: HTTP ${resp.status}, ${text.substring(0, 200)}`); } catch(e) {}
+                            }
                         }
                     } catch (e) {
-                        console.warn(`[PDF] 下载方式${i+1}异常: ${e.message}`);
+                        if (i === 0) console.warn(`[PDF] 下载异常: ${e.message}`);
                     }
                 }
             } catch (e) {
@@ -675,14 +680,17 @@ async function fetchLogoFromIconTable(companyName) {
                 if (first && first.file_token) {
                     console.log(`[PDF] 找到附件字段"${fieldName}": file_token=${first.file_token.substring(0, 20)}..., name=${first.name || '?'}`);
                     const buf = await loadLogoImage(fieldValue);
-                    if (buf && buf.length > 500) {
+                    if (buf && buf.length >= 20) {
                         console.log(`[PDF] ✅ 从图标表加载logo成功: ${mapping.name} (${buf.length} bytes)`);
 
-                        // 缓存到本地
+                        // 缓存到本地（清理旧缓存）
                         try {
                             const logosDir = path.join(__dirname, 'logos');
                             if (!fs.existsSync(logosDir)) fs.mkdirSync(logosDir, { recursive: true });
-                            fs.writeFileSync(path.join(logosDir, mapping.file), buf);
+                            const cachePath = path.join(logosDir, mapping.file);
+                            // 写入前先删除旧文件
+                            if (fs.existsSync(cachePath)) fs.unlinkSync(cachePath);
+                            fs.writeFileSync(cachePath, buf);
                             console.log(`[PDF] logo已缓存到本地: ${mapping.file}`);
                         } catch (e) {
                             console.warn(`[PDF] logo缓存失败: ${e.message}`);
@@ -1682,6 +1690,34 @@ const server = http.createServer(async (req, res) => {
             ],
         };
         sendJson(res, 200, logosDebug);
+        return;
+    }
+
+    // GET /debug/logos/clean — 清理无效logo缓存
+    if (req.method === 'GET' && url.pathname === '/debug/logos/clean') {
+        (async () => {
+            const logosDir = path.join(__dirname, 'logos');
+            const cleaned = [];
+            if (fs.existsSync(logosDir)) {
+                const files = fs.readdirSync(logosDir);
+                for (const file of files) {
+                    const filePath = path.join(logosDir, file);
+                    const stat = fs.statSync(filePath);
+                    if (stat.size < 20) {
+                        fs.unlinkSync(filePath);
+                        cleaned.push({ file, size: stat.size, removed: true });
+                    } else {
+                        cleaned.push({ file, size: stat.size, removed: false });
+                    }
+                }
+            }
+            sendJson(res, 200, { 
+                message: 'Logo缓存清理完成', 
+                cleaned,
+                totalFiles: cleaned.length,
+                removedCount: cleaned.filter(c => c.removed).length,
+            });
+        })().catch(e => sendJson(res, 500, { error: e.message }));
         return;
     }
 
