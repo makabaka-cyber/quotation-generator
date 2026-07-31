@@ -524,25 +524,58 @@ async function loadLogoImage(value) {
             }
         }
 
-        // 优先通过飞书 file_token 下载（更稳定）
+        // 优先通过飞书 file_token 下载
         if (fileToken) {
+            console.log(`[PDF] 尝试file_token下载: ${fileToken.substring(0, 20)}..., type=${typeof value}, isArray=${Array.isArray(value)}`);
             try {
                 const { getTenantToken } = require('./feishu-api');
                 const token = await getTenantToken();
-                const resp = await fetch(`https://open.feishu.cn/open-apis/drive/v1/medias/${fileToken}/download`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (resp.ok) {
-                    const buf = Buffer.from(await resp.arrayBuffer());
-                    if (buf.length > 500) {
-                        console.log(`[PDF] file_token下载成功: ${fileToken.substring(0, 20)}... (${buf.length} bytes)`);
-                        return buf;
+                let lastError = null;
+
+                // 尝试API 1: drive/v1/medias/{token}/download（媒体文件）
+                try {
+                    const resp = await fetch(`https://open.feishu.cn/open-apis/drive/v1/medias/${fileToken}/download`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    console.log(`[PDF] medias API响应: HTTP ${resp.status}`);
+                    if (resp.ok) {
+                        const buf = Buffer.from(await resp.arrayBuffer());
+                        if (buf.length > 500) {
+                            console.log(`[PDF] ✅ medias下载成功: ${buf.length} bytes`);
+                            return buf;
+                        }
+                    } else if (resp.status === 404) {
+                        lastError = 'medias返回404，尝试files API';
+                    } else {
+                        lastError = `medias返回HTTP ${resp.status}`;
+                        try { const text = await resp.text(); console.log(`[PDF] medias错误详情: ${text.substring(0, 200)}`); } catch(e) {}
                     }
-                } else {
-                    console.warn(`[PDF] file_token下载失败: HTTP ${resp.status}`);
+                } catch (e) {
+                    lastError = `medias异常: ${e.message}`;
+                }
+
+                // 尝试API 2: drive/v1/files/{token}/download（普通文件，作为降级）
+                if (lastError) {
+                    try {
+                        const resp = await fetch(`https://open.feishu.cn/open-apis/drive/v1/files/${fileToken}/download`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        console.log(`[PDF] files API响应: HTTP ${resp.status}`);
+                        if (resp.ok) {
+                            const buf = Buffer.from(await resp.arrayBuffer());
+                            if (buf.length > 500) {
+                                console.log(`[PDF] ✅ files下载成功: ${buf.length} bytes`);
+                                return buf;
+                            }
+                        } else {
+                            try { const text = await resp.text(); console.log(`[PDF] files错误详情: ${text.substring(0, 200)}`); } catch(e) {}
+                        }
+                    } catch (e) {
+                        console.warn(`[PDF] files下载异常: ${e.message}`);
+                    }
                 }
             } catch (e) {
-                console.warn(`[PDF] file_token下载异常: ${e.message}`);
+                console.warn(`[PDF] file_token下载总体异常: ${e.message}`);
             }
         }
 
