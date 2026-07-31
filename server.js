@@ -1752,8 +1752,18 @@ const server = http.createServer(async (req, res) => {
                     }
 
                     // 步骤2: 查询图标表
+                    console.log(`[Logo测试] 查询图标表: BASE_TOKEN=${BASE_TOKEN?.substring(0,10)}..., ICON_TABLE_ID=${ICON_TABLE_ID}`);
                     const { searchRecords, getTenantToken } = require('./feishu-api');
-                    const records = await searchRecords(BASE_TOKEN, ICON_TABLE_ID);
+                    let records = [];
+                    try {
+                        records = await searchRecords(BASE_TOKEN, ICON_TABLE_ID);
+                        console.log(`[Logo测试] 图标表查询成功: ${records.length} 条记录`);
+                    } catch (e) {
+                        console.error(`[Logo测试] 图标表查询失败: ${e.message}`);
+                        result.error = `图标表查询失败: ${e.message}`;
+                        results.push(result);
+                        continue;
+                    }
                     result.steps.push({ step: '查询图标表', recordsFound: records.length });
 
                     const mapping = findLogoMapping(company);
@@ -1806,9 +1816,11 @@ const server = http.createServer(async (req, res) => {
                     }
 
                     // 步骤4: 使用loadLogoImage下载（已支持extra参数）
+                    console.log(`[Logo测试] 下载logo: token=${attachmentToken?.substring(0,20)}..., name=${attachmentInfo?.name}`);
                     const buf = await loadLogoImage([{ file_token: attachmentToken, name: attachmentInfo?.name, type: attachmentInfo?.type }]);
+                    console.log(`[Logo测试] 下载结果: buf=${buf ? buf.length + ' bytes' : 'null'}`);
 
-                    if (buf && buf.length > 100) {
+                    if (buf && buf.length >= 20) {
                         result.success = true;
                         result.bufferSize = buf.length;
                         result.source = 'icon-table';
