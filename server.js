@@ -855,6 +855,7 @@ function drawLogos(doc, opts) {
 
     // 绘制品牌logo（问界）（右上角）
     const brandLogoX = pageWidth - pageMarginRight;
+    console.log(`[PDF] 右上角logo参数: rightX=${brandLogoX}, y=${y}, logoH=${logoH}, pageWidth=${pageWidth}, pageMarginRight=${pageMarginRight}`);
     const brandLogo = drawBrandLogoRight(brandName, brandLogoBuf, brandLogoX);
     maxY = Math.max(maxY, y + brandLogo.height);
 
@@ -862,43 +863,50 @@ function drawLogos(doc, opts) {
     
     return { nextY: maxY };
 
-    // 辅助函数：右上角绘制品牌logo（闭包内，可访问所有局部变量）
+    // 辅助函数：右上角绘制品牌logo
     function drawBrandLogoRight(name, logoBuf, rightX) {
         const displayName = getDisplayName(name);
-        const maxLogoWidth = 120; // 品牌logo小一些
-        const estimatedWidth = Math.min(maxLogoWidth, logoH * 4);
+        const maxLogoWidth = 120;
+        const safeLogoH = logoH || 32;
+        const safeRightX = isNaN(rightX) ? (pageWidth - pageMarginRight) : rightX;
+        const estimatedWidth = Math.min(maxLogoWidth, safeLogoH * 4);
+        
+        console.log(`[PDF] drawBrandLogoRight: name=${name}, logoBuf=${logoBuf ? logoBuf.length + 'bytes' : 'null'}, rightX=${safeRightX}, logoH=${safeLogoH}`);
         
         if (logoBuf && logoBuf.length > 100) {
             try {
                 doc.save();
-                doc.image(logoBuf, rightX - estimatedWidth, y, { 
-                    height: logoH, 
-                    fit: [estimatedWidth, logoH],
+                const drawX = safeRightX - estimatedWidth;
+                console.log(`[PDF] 绘制品牌logo: x=${drawX}, y=${y}, height=${safeLogoH}, fit=[${estimatedWidth},${safeLogoH}]`);
+                doc.image(logoBuf, drawX, y, { 
+                    height: safeLogoH, 
+                    fit: [estimatedWidth, safeLogoH],
                     align: 'right'
                 });
                 doc.restore();
-                console.log(`[PDF] 渲染右上角logo图片: ${displayName} (${estimatedWidth}px宽)`);
-                return { width: estimatedWidth, height: logoH };
+                console.log(`[PDF] ✅ 渲染右上角logo图片: ${displayName} (${estimatedWidth}px宽)`);
+                return { width: estimatedWidth, height: safeLogoH };
             } catch (e) {
                 console.warn(`[PDF] 渲染右上角logo图片失败: ${e.message}，使用文字降级`);
-                return drawBrandTextRight(displayName, rightX);
+                return drawBrandTextRight(displayName, safeRightX);
             }
         } else {
-            return drawBrandTextRight(displayName, rightX);
+            return drawBrandTextRight(displayName, safeRightX);
         }
     }
 
     function drawBrandTextRight(displayName, rightX) {
+        const safeLogoH = logoH || 32;
         doc.save();
         useFont();
         doc.fillColor(colors.primary);
         setFontSize(13);
-        const textY = y + (logoH - 16) / 2;
+        const textY = y + (safeLogoH - 16) / 2;
         const textWidth = doc.widthOfString(displayName) + 8;
         doc.text(displayName, rightX - textWidth, textY);
         doc.restore();
         console.log(`[PDF] 渲染右上角文字logo: ${displayName} (${textWidth}px宽)`);
-        return { width: textWidth, height: logoH };
+        return { width: textWidth, height: safeLogoH };
     }
 }
 
