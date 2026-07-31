@@ -526,52 +526,44 @@ async function loadLogoImage(value) {
 
         // 优先通过飞书 file_token 下载
         if (fileToken) {
-            console.log(`[PDF] 尝试file_token下载: ${fileToken.substring(0, 20)}..., type=${typeof value}, isArray=${Array.isArray(value)}`);
+            console.log(`[PDF] 尝试file_token下载: ${fileToken.substring(0, 20)}...`);
             try {
                 const { getTenantToken } = require('./feishu-api');
                 const token = await getTenantToken();
-                let lastError = null;
 
-                // 尝试API 1: drive/v1/medias/{token}/download（媒体文件）
-                try {
-                    const resp = await fetch(`https://open.feishu.cn/open-apis/drive/v1/medias/${fileToken}/download`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    console.log(`[PDF] medias API响应: HTTP ${resp.status}`);
-                    if (resp.ok) {
-                        const buf = Buffer.from(await resp.arrayBuffer());
-                        if (buf.length > 500) {
-                            console.log(`[PDF] ✅ medias下载成功: ${buf.length} bytes`);
-                            return buf;
-                        }
-                    } else if (resp.status === 404) {
-                        lastError = 'medias返回404，尝试files API';
-                    } else {
-                        lastError = `medias返回HTTP ${resp.status}`;
-                        try { const text = await resp.text(); console.log(`[PDF] medias错误详情: ${text.substring(0, 200)}`); } catch(e) {}
-                    }
-                } catch (e) {
-                    lastError = `medias异常: ${e.message}`;
-                }
+                // 多维表格附件需要extra参数指定tableId上下文
+                // extra格式: {"bitablePerm":{"tableId":"xxx","rev":0}}
+                const extraParams = [
+                    // 尝试1: 使用ICON_TABLE_ID
+                    ICON_TABLE_ID ? `{"bitablePerm":{"tableId":"${ICON_TABLE_ID}","rev":0}}` : null,
+                    // 尝试2: 使用TABLE_ID（报价单表）
+                    TABLE_ID ? `{"bitablePerm":{"tableId":"${TABLE_ID}","rev":0}}` : null,
+                    // 尝试3: 无extra（普通云文档）
+                    null,
+                ].filter(Boolean);
 
-                // 尝试API 2: drive/v1/files/{token}/download（普通文件，作为降级）
-                if (lastError) {
+                for (let i = 0; i < extraParams.length; i++) {
+                    const extra = extraParams[i];
                     try {
-                        const resp = await fetch(`https://open.feishu.cn/open-apis/drive/v1/files/${fileToken}/download`, {
+                        const downloadUrl = extra
+                            ? `https://open.feishu.cn/open-apis/drive/v1/medias/${fileToken}/download?extra=${encodeURIComponent(extra)}`
+                            : `https://open.feishu.cn/open-apis/drive/v1/medias/${fileToken}/download`;
+                        console.log(`[PDF] 尝试下载 (方式${i+1}): extra=${extra ? extra.substring(0, 50) : 'none'}`);
+                        const resp = await fetch(downloadUrl, {
                             headers: { 'Authorization': `Bearer ${token}` }
                         });
-                        console.log(`[PDF] files API响应: HTTP ${resp.status}`);
+                        console.log(`[PDF] 下载响应: HTTP ${resp.status}`);
                         if (resp.ok) {
                             const buf = Buffer.from(await resp.arrayBuffer());
-                            if (buf.length > 500) {
-                                console.log(`[PDF] ✅ files下载成功: ${buf.length} bytes`);
+                            if (buf.length > 100) {
+                                console.log(`[PDF] ✅ 下载成功: ${buf.length} bytes`);
                                 return buf;
                             }
                         } else {
-                            try { const text = await resp.text(); console.log(`[PDF] files错误详情: ${text.substring(0, 200)}`); } catch(e) {}
+                            try { const text = await resp.text(); console.log(`[PDF] 错误详情: ${text.substring(0, 200)}`); } catch(e) {}
                         }
                     } catch (e) {
-                        console.warn(`[PDF] files下载异常: ${e.message}`);
+                        console.warn(`[PDF] 下载方式${i+1}异常: ${e.message}`);
                     }
                 }
             } catch (e) {
@@ -1777,64 +1769,45 @@ const server = http.createServer(async (req, res) => {
                         continue;
                     }
 
-                    // 步骤4: 直接测试下载（绕过loadLogoImage，直接调用API查看详细错误）
-                    const tenantToken = await getTenantToken();
-                    const downloadTests = [];
+                    // 步骤4: 使用loadLogoImage下载（已支持extra参数）
+                    const buf = await loadLogoImage([{ file_token: attachmentToken, name: attachmentInfo?.name, type: attachmentInfo?.type }]);
 
-                    // 测试API 1: medias
-                    try {
-                        const resp1 = await fetch(`https://open.feishu.cn/open-apis/drive/v1/medias/${attachmentToken}/download`, {
-                            headers: { 'Authorization': `Bearer ${tenantToken}` }
-                        });
-                        const resp1Info = { api: 'medias', status: resp1.status, ok: resp1.ok };
-                        if (resp1.ok) {
-                            const buf = Buffer.from(await resp1.arrayBuffer());
-                            resp1Info.size = buf.length;
-                            if (buf.length > 500) {
-                                result.success = true;
-                                result.bufferSize = buf.length;
-                                result.source = 'icon-table';
-                                downloadTests.push(resp1Info);
-                                result.steps.push({ step: '下载', success: true, tests: downloadTests });
-                                results.push(result);
-                                continue;
+                    if (buf && buf.length > 100) {
+                        result.success = true;
+                        result.bufferSize = buf.length;
+                        result.source = 'icon-table';
+                        result.steps.push({ step: '下载', success: true, size: buf.length });
+                    } else {
+                        // 下载失败，手动测试extra参数效果
+                        const tenantToken = await getTenantToken();
+                        const testResults = [];
+                        const extraTests = [
+                            { label: 'extra+ICON_TABLE', extra: `{"bitablePerm":{"tableId":"${ICON_TABLE_ID}","rev":0}}` },
+                            { label: 'extra+TABLE_ID', extra: TABLE_ID ? `{"bitablePerm":{"tableId":"${TABLE_ID}","rev":0}}` : null },
+                            { label: '无extra', extra: null },
+                        ];
+                        for (const test of extraTests) {
+                            if (test.extra === null && test.label !== '无extra') continue;
+                            try {
+                                const durl = test.extra
+                                    ? `https://open.feishu.cn/open-apis/drive/v1/medias/${attachmentToken}/download?extra=${encodeURIComponent(test.extra)}`
+                                    : `https://open.feishu.cn/open-apis/drive/v1/medias/${attachmentToken}/download`;
+                                const resp = await fetch(durl, { headers: { 'Authorization': `Bearer ${tenantToken}` } });
+                                const info = { label: test.label, status: resp.status };
+                                if (resp.ok) {
+                                    const b = Buffer.from(await resp.arrayBuffer());
+                                    info.size = b.length;
+                                } else {
+                                    try { info.body = (await resp.text()).substring(0, 200); } catch(e) {}
+                                }
+                                testResults.push(info);
+                            } catch(e) {
+                                testResults.push({ label: test.label, error: e.message });
                             }
-                        } else {
-                            try { resp1Info.body = (await resp1.text()).substring(0, 300); } catch(e) {}
                         }
-                        downloadTests.push(resp1Info);
-                    } catch (e) {
-                        downloadTests.push({ api: 'medias', error: e.message });
+                        result.steps.push({ step: '下载', success: false, tests: testResults });
+                        result.error = '下载失败';
                     }
-
-                    // 测试API 2: files
-                    try {
-                        const resp2 = await fetch(`https://open.feishu.cn/open-apis/drive/v1/files/${attachmentToken}/download`, {
-                            headers: { 'Authorization': `Bearer ${tenantToken}` }
-                        });
-                        const resp2Info = { api: 'files', status: resp2.status, ok: resp2.ok };
-                        if (resp2.ok) {
-                            const buf = Buffer.from(await resp2.arrayBuffer());
-                            resp2Info.size = buf.length;
-                            if (buf.length > 500) {
-                                result.success = true;
-                                result.bufferSize = buf.length;
-                                result.source = 'icon-table';
-                                downloadTests.push(resp2Info);
-                                result.steps.push({ step: '下载', success: true, tests: downloadTests });
-                                results.push(result);
-                                continue;
-                            }
-                        } else {
-                            try { resp2Info.body = (await resp2.text()).substring(0, 300); } catch(e) {}
-                        }
-                        downloadTests.push(resp2Info);
-                    } catch (e) {
-                        downloadTests.push({ api: 'files', error: e.message });
-                    }
-
-                    result.steps.push({ step: '下载', success: false, tests: downloadTests });
-                    result.error = '所有下载API均失败';
                 } catch (e) {
                     result.error = e.message;
                     result.steps.push({ step: '异常', error: e.message });
