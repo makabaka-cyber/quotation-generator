@@ -1693,11 +1693,12 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // GET /debug/logos/test — 测试图标表logo下载（带详细诊断）
+    // GET /debug/logos/test — 测试图标表logo下载（带详细诊断）v2
     if (req.method === 'GET' && url.pathname === '/debug/logos/test') {
         (async () => {
             const testCompanies = ['中国平安', '中国人寿', '中国太平洋', '中国人保', '太平保险', '中华联合', '问界'];
             const results = [];
+            console.log('[Logo测试] ===== 开始详细诊断 v2 =====');
             
             for (const company of testCompanies) {
                 console.log(`[Logo测试] ====== 测试 ${company} ======`);
