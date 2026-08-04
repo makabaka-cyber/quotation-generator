@@ -356,12 +356,43 @@ function adaptRecord(openApiRecord) {
 // 报价单生成逻辑（从原 server.js 保留，不修改）
 // ============================================================
 
+/**
+ * 清理字段值中的说明性文字（非业务数据）
+ * 移除"整车首任延保"、"电池延保"、"安心包"、"一键查看总价"等说明性内容
+ */
+function cleanFieldText(value) {
+    if (!value || typeof value !== 'string') return value;
+    // 需要过滤的说明性关键词（出现这些词的整行都删除）
+    const noiseKeywords = [
+        '整车首任延保', '电池延保', '安心包全档位', '一键查看总价',
+        '切换「安心包档位」', '切换', '臻享无忧', '按服务计划区分价格',
+        '已排除漆面', '漆面权益', '轮胎保障', '代驾服务',
+        '数据来源', '延保服务清单', '配件号', 'JKS-MP', 'JKS-EP',
+        '原厂物料', '价格仅供参考', '最终以官方下单系统为准',
+        '生成日期', '保修期', '档位',
+        '整车 + 电池', '整车+电池',
+    ];
+    // 按行分割，过滤掉包含噪声关键词的行
+    const lines = value.split(/\r?\n/);
+    const cleaned = lines.filter(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return true; // 保留空行（后续会清理）
+        for (const kw of noiseKeywords) {
+            if (trimmed.includes(kw)) return false;
+        }
+        return true;
+    });
+    // 合并并清理多余空行
+    let result = cleaned.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    return result;
+}
+
 /** 构建记录详情（用于报价单生成），统一字段名 */
 function buildRecordDetail(record) {
     return {
         record_id: record._record_id || '',
-        '客户信息': record['客户信息'] || '',
-        '车型': record['车型'] || '',
+        '客户信息': cleanFieldText(record['客户信息'] || ''),
+        '车型': cleanFieldText(record['车型'] || ''),
         '保险公司': record['保险公司'] || '',
         // 优先读取「图标-公司logo」字段，回退到「公司Logo」，最后回退到原字段
         '保险公司logo': record['图标-公司logo'] || record['公司Logo'] || record['保险公司logo'] || '',
